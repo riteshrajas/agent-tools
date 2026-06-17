@@ -1,0 +1,65 @@
+name: Trigger Jules on TODO Update
+
+on:
+  push:
+    paths:
+      - 'TODO.md'
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      manual_task:
+        description: 'Manual task description to run with Jules'
+        required: true
+        type: string
+
+jobs:
+  jules-trigger:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2 # Fetch previous commit to enable git diff
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Jules CLI
+        run: npm install -g @google/jules
+
+      - name: Trigger Jules for Manual Input
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+        run: |
+          echo "Triggering manual task: ${{ github.event.inputs.manual_task }}"
+          jules new --repo riteshrajas/agent-tools "${{ github.event.inputs.manual_task }}"
+
+      - name: Detect and Trigger Jules for New Todos
+        if: github.event_name == 'push'
+        env:
+          JULES_API_KEY: ${{ secrets.JULES_API_KEY }}
+        run: |
+          # Get lines added to TODO.md that start with "+- [ ]"
+          NEW_TODOS=$(git diff HEAD~1 HEAD -- TODO.md | grep -E '^\+\s*-\s*\[ \]' | sed 's/^\+\s*-\s*\[ \]\s*//')
+          
+          if [ -z "$NEW_TODOS" ]; then
+            echo "No new unchecked tasks found in TODO.md."
+            exit 0
+          fi
+          
+          echo "Detected new tasks in TODO.md:"
+          echo "$NEW_TODOS"
+          
+          # Iterate over each line and trigger Jules
+          echo "$NEW_TODOS" | while IFS= read -r task; do
+            if [ -n "$task" ]; then
+              echo "--------------------------------------------------"
+              echo "Triggering Jules task: $task"
+              jules new --repo riteshrajas/agent-tools "$task"
+            fi
+          done
