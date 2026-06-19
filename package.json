@@ -2,13 +2,15 @@
   "name": "agent-tools",
   "version": "1.0.0",
   "description": "High-performance CLI and MCP server for video, audio, PDF, and file conversion designed for AI models and command line usage.",
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
   "type": "module",
   "bin": {
-    "agent-tools": "./dist/index.js"
+    "agent-tools": "./dist/index.cjs"
   },
   "scripts": {
     "build": "tsc",
+    "bundle": "esbuild src/index.ts --bundle --platform=node --target=node22 --outfile=dist/index.cjs --packages=external",
+    "package": "npm run build && npm run bundle && npx @yao-pkg/pkg . --targets node22-win-x64 --output agent-tools.exe",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 0"
@@ -42,7 +44,13 @@
     "@types/fluent-ffmpeg": "^2.1.27",
     "@types/node": "^20.11.24",
     "@types/tar": "^6.1.13",
+    "esbuild": "^0.28.1",
     "tsx": "^4.7.1",
     "typescript": "^5.3.3"
+  },
+  "pkg": {
+    "assets": [
+      "node_modules/@img/sharp-win32-x64/**/*"
+    ]
   }
 }

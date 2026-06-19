@@ -27,11 +27,14 @@ jobs:
       - name: Build TypeScript
         run: npm run build
 
-      - name: Install pkg
-        run: npm install -g pkg
+      - name: Bundle CommonJS
+        run: npx esbuild src/index.ts --bundle --platform=node --target=node22 --outfile=dist/index.cjs --packages=external
+
+      - name: Install @yao-pkg/pkg
+        run: npm install -g @yao-pkg/pkg
 
       - name: Pack to Windows Executable
-        run: pkg package.json --targets node18-win-x64 --output agent-tools.exe
+        run: pkg . --targets node22-win-x64 --output agent-tools.exe
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
