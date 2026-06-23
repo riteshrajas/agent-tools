@@ -5,3 +5,4 @@ temp_*
 .env
 .env.*
 .DS_Store
+agent-tools.exe
