@@ -3,16 +3,18 @@ import { mergePDFs, splitPDF, rotatePDF } from './tools/pdf.js';
 import { trimVideo, mergeVideos, changeVideoSpeed, changeVideoVolume } from './tools/video.js';
 import { trimAudio, mergeAudio, changeAudioSpeed, changeAudioVolume, reverseAudio } from './tools/audio.js';
 import { convertImage, convertAudio, convertVideo } from './tools/converter.js';
+import { convertMdToPdf, extractPptxText, searchPdf, extractDocxParagraphs } from './tools/doc.js';
+import { runInteractiveRepoCleanup, bundleCodebase, fetchGitHubRepos, batchCleanRepos } from './tools/git.js';
 
 export function setupCLI(): Command {
   const program = new Command();
 
   program
     .name('agent-tools')
-    .description('High-performance CLI tools for file, video, audio, and PDF manipulation')
-    .version('1.0.0');
+    .description('High-performance CLI tools for file, video, audio, PDF, document, and GitHub manipulation')
+    .version('2.0.0');
 
-  // PDF Subcommands
+  // ─── PDF ──────────────────────────────────────────────────────────────────
   const pdfCmd = program.command('pdf').description('PDF manipulation tools');
 
   pdfCmd
@@ -67,7 +69,97 @@ export function setupCLI(): Command {
       }
     });
 
-  // Video Subcommands
+  pdfCmd
+    .command('search')
+    .description('Search for text within a PDF file')
+    .argument('<input>', 'input PDF file path')
+    .argument('<query>', 'search query string')
+    .action(async (input, query) => {
+      try {
+        console.log(`Searching "${query}" in ${input}...`);
+        const results = await searchPdf(input, query);
+        if (results.length === 0) {
+          console.log('No matches found.');
+        } else {
+          console.log(`Found ${results.length} matching page(s):`);
+          results.forEach(r => {
+            console.log(`\n--- Page ${r.pageNumber} ---`);
+            console.log(r.text.slice(0, 500) + (r.text.length > 500 ? '...' : ''));
+          });
+        }
+      } catch (err: any) {
+        console.error(`Error: ${err.message}`);
+        process.exit(1);
+      }
+    });
+
+  // ─── DOC ──────────────────────────────────────────────────────────────────
+  const docCmd = program.command('doc').description('Document reading and conversion tools');
+
+  docCmd
+    .command('md-to-pdf')
+    .description('Convert a Markdown file to a styled PDF (requires MS Edge)')
+    .argument('<input>', 'input Markdown file path (.md)')
+    .argument('<output>', 'output PDF file path (.pdf)')
+    .action(async (input, output) => {
+      try {
+        console.log(`Converting ${input} to PDF...`);
+        const success = await convertMdToPdf(input, output);
+        if (success) {
+          console.log(`Success! PDF saved to: ${output}`);
+        } else {
+          console.error('Conversion failed. Ensure Microsoft Edge is installed.');
+          process.exit(1);
+        }
+      } catch (err: any) {
+        console.error(`Error: ${err.message}`);
+        process.exit(1);
+      }
+    });
+
+  docCmd
+    .command('read-pptx')
+    .description('Extract all text from a PowerPoint presentation slide-by-slide')
+    .argument('<input>', 'input .pptx file path')
+    .option('-o, --output <file>', 'save output to a text file instead of printing')
+    .action(async (input, options) => {
+      try {
+        const text = await extractPptxText(input);
+        if (options.output) {
+          const fs = await import('fs');
+          fs.writeFileSync(options.output, text, 'utf8');
+          console.log(`Text saved to: ${options.output}`);
+        }
+        // extractPptxText already prints to stdout
+      } catch (err: any) {
+        console.error(`Error: ${err.message}`);
+        process.exit(1);
+      }
+    });
+
+  docCmd
+    .command('read-docx')
+    .description('Extract all paragraphs from a Word document (.docx)')
+    .argument('<input>', 'input .docx file path')
+    .option('-o, --output <file>', 'save output to a text file instead of printing')
+    .action(async (input, options) => {
+      try {
+        const paragraphs = await extractDocxParagraphs(input);
+        const text = paragraphs.filter(p => p.trim()).join('\n\n');
+        if (options.output) {
+          const fs = await import('fs');
+          fs.writeFileSync(options.output, text, 'utf8');
+          console.log(`Text saved to: ${options.output}`);
+        } else {
+          console.log(text);
+        }
+      } catch (err: any) {
+        console.error(`Error: ${err.message}`);
+        process.exit(1);
+      }
+    });
+
+  // ─── VIDEO ────────────────────────────────────────────────────────────────
   const videoCmd = program.command('video').description('Video manipulation tools');
 
   videoCmd
@@ -138,7 +230,7 @@ export function setupCLI(): Command {
       }
     });
 
-  // Audio Subcommands
+  // ─── AUDIO ───────────────────────────────────────────────────────────────
   const audioCmd = program.command('audio').description('Audio manipulation tools');
 
   audioCmd
@@ -225,7 +317,7 @@ export function setupCLI(): Command {
       }
     });
 
-  // Converter Subcommands
+  // ─── CONVERT ──────────────────────────────────────────────────────────────
   const convertCmd = program.command('convert').description('Universal file format converters');
 
   convertCmd
@@ -277,6 +369,55 @@ export function setupCLI(): Command {
         console.log(`Converting video ${input} to ${output}...`);
         const result = await convertVideo(input, output);
         console.log(`Success! Converted video saved to: ${result}`);
+      } catch (err: any) {
+        console.error(`Error: ${err.message}`);
+        process.exit(1);
+      }
+    });
+
+  // ─── GIT ──────────────────────────────────────────────────────────────────
+  const gitCmd = program.command('git').description('GitHub repository management tools');
+
+  gitCmd
+    .command('clean-repos')
+    .description('Interactive TUI to review, archive, or delete GitHub repositories')
+    .action(async () => {
+      await runInteractiveRepoCleanup();
+    });
+
+  gitCmd
+    .command('list-repos')
+    .description('List all GitHub repositories (JSON)')
+    .option('--filter <filter>', 'filter repos by name (case-insensitive)')
+    .action(async (options) => {
+      try {
+        const repos = fetchGitHubRepos();
+        const filtered = options.filter
+          ? repos.filter(r => r.name.toLowerCase().includes(options.filter.toLowerCase()))
+          : repos;
+        console.log(JSON.stringify(filtered, null, 2));
+      } catch (err: any) {
+        console.error(`Error: ${err.message}`);
+        process.exit(1);
+      }
+    });
+
+  gitCmd
+    .command('bundle')
+    .description('Bundle an entire codebase directory into a single Markdown file (useful for pasting to LLMs)')
+    .argument('<dir>', 'source directory to bundle')
+    .argument('<output>', 'output Markdown file path')
+    .option('--max-size <bytes>', 'max file size in bytes to include (default: 204800)', parseInt)
+    .option('--ext <extensions>', 'comma-separated list of extensions to include (e.g. .ts,.py,.md)')
+    .action(async (dir, output, options) => {
+      try {
+        const extensions = options.ext ? options.ext.split(',') : undefined;
+        console.log(`Bundling codebase at ${dir}...`);
+        const result = bundleCodebase(dir, output, {
+          maxFileSize: options.maxSize,
+          extensions,
+        });
+        console.log(`✅  Bundled ${result.fileCount} files (${(result.totalBytes / 1024).toFixed(1)} KB) → ${result.outputFile}`);
       } catch (err: any) {
         console.error(`Error: ${err.message}`);
         process.exit(1);

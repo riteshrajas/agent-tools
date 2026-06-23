@@ -5,31 +5,26 @@ import { mergePDFs, splitPDF, rotatePDF } from './tools/pdf.js';
 import { trimVideo, mergeVideos, changeVideoSpeed, changeVideoVolume } from './tools/video.js';
 import { trimAudio, mergeAudio, changeAudioSpeed, changeAudioVolume, reverseAudio } from './tools/audio.js';
 import { convertImage, convertAudio, convertVideo } from './tools/converter.js';
+import { convertMdToPdf, extractPptxText, searchPdf, extractDocxParagraphs } from './tools/doc.js';
+import { fetchGitHubRepos, batchCleanRepos, bundleCodebase } from './tools/git.js';
 
 export async function startMCPServer(): Promise<void> {
-  // Silence console logs and redirects them to stderr to avoid corrupting stdout stdio transport channel.
+  // Silence console logs and redirect them to stderr to avoid corrupting stdout stdio transport channel.
   const originalLog = console.log;
   const originalError = console.error;
   console.log = (...args) => console.warn('[INFO]', ...args);
   console.error = (...args) => console.warn('[ERROR]', ...args);
 
   const server = new Server(
-    {
-      name: 'agent-tools',
-      version: '1.0.0',
-    },
-    {
-      capabilities: {
-        tools: {},
-      },
-    }
+    { name: 'agent-tools', version: '2.0.0' },
+    { capabilities: { tools: {} } }
   );
 
-  // Define tools list
+  // ─── Tool List ─────────────────────────────────────────────────────────────
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     return {
       tools: [
-        // PDF Tools
+        // ── PDF ──────────────────────────────────────────────────────────────
         {
           name: 'pdf_merge',
           description: 'Merge multiple PDF files into a single PDF.',
@@ -50,14 +45,14 @@ export async function startMCPServer(): Promise<void> {
             properties: {
               input: { type: 'string', description: 'Path to input PDF file' },
               outputDir: { type: 'string', description: 'Directory to save output PDF pages' },
-              pages: { type: 'string', description: 'Optional: comma-separated pages/ranges to extract (e.g., "1-3,5,7")' },
+              pages: { type: 'string', description: 'Optional: comma-separated pages/ranges (e.g. "1-3,5,7")' },
             },
             required: ['input', 'outputDir'],
           },
         },
         {
           name: 'pdf_rotate',
-          description: 'Rotate specific pages of a PDF by a given angle (90, 180, 270 degrees).',
+          description: 'Rotate specific pages of a PDF by a given angle.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -69,8 +64,56 @@ export async function startMCPServer(): Promise<void> {
             required: ['input', 'output', 'angle'],
           },
         },
+        {
+          name: 'pdf_search',
+          description: 'Search for text occurrences within a PDF file. Returns matching page numbers and surrounding context.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              input: { type: 'string', description: 'Path to the PDF file to search' },
+              query: { type: 'string', description: 'Text to search for (case-insensitive)' },
+            },
+            required: ['input', 'query'],
+          },
+        },
 
-        // Video Tools
+        // ── DOC ──────────────────────────────────────────────────────────────
+        {
+          name: 'markdown_to_pdf',
+          description: 'Convert a Markdown file to a styled PDF document using Microsoft Edge headless mode. Supports headings, bold, lists, and horizontal rules.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              input: { type: 'string', description: 'Path to the input Markdown (.md) file' },
+              output: { type: 'string', description: 'Path to save the output PDF file' },
+            },
+            required: ['input', 'output'],
+          },
+        },
+        {
+          name: 'read_pptx',
+          description: 'Extract and return all text from a PowerPoint (.pptx) presentation, organized slide-by-slide.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              input: { type: 'string', description: 'Path to the .pptx presentation file' },
+            },
+            required: ['input'],
+          },
+        },
+        {
+          name: 'read_docx',
+          description: 'Extract and return all paragraph text from a Word document (.docx).',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              input: { type: 'string', description: 'Path to the .docx Word document file' },
+            },
+            required: ['input'],
+          },
+        },
+
+        // ── VIDEO ─────────────────────────────────────────────────────────────
         {
           name: 'video_trim',
           description: 'Trim a video from start time to end/duration.',
@@ -99,7 +142,7 @@ export async function startMCPServer(): Promise<void> {
         },
         {
           name: 'video_speed',
-          description: 'Change video playback speed (speeds up or slows down video and audio).',
+          description: 'Change video playback speed.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -124,7 +167,7 @@ export async function startMCPServer(): Promise<void> {
           },
         },
 
-        // Audio Tools
+        // ── AUDIO ─────────────────────────────────────────────────────────────
         {
           name: 'audio_trim',
           description: 'Trim an audio file.',
@@ -190,7 +233,7 @@ export async function startMCPServer(): Promise<void> {
           },
         },
 
-        // Universal Converters
+        // ── CONVERT ──────────────────────────────────────────────────────────
         {
           name: 'convert_image',
           description: 'Convert image format and resize.',
@@ -230,11 +273,60 @@ export async function startMCPServer(): Promise<void> {
             required: ['input', 'output'],
           },
         },
+
+        // ── GIT / GITHUB ──────────────────────────────────────────────────────
+        {
+          name: 'github_list_repos',
+          description: 'List all GitHub repositories for the authenticated user. Returns JSON array with name, description, stars, fork status, and last updated date.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              filter: { type: 'string', description: 'Optional: case-insensitive name filter string' },
+            },
+          },
+        },
+        {
+          name: 'github_batch_clean',
+          description: 'Archive and/or delete a list of GitHub repositories. Use github_list_repos first to identify repositories. WARNING: deletion is permanent.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              toArchive: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'List of "owner/repo" strings to archive (make read-only)',
+              },
+              toDelete: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'List of "owner/repo" strings to permanently delete (IRREVERSIBLE)',
+              },
+            },
+          },
+        },
+        {
+          name: 'bundle_codebase',
+          description: 'Recursively scan a directory and bundle all source files into a single Markdown document. Ideal for providing full codebase context to LLMs.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              dir: { type: 'string', description: 'Root directory to scan and bundle' },
+              output: { type: 'string', description: 'Output path for the bundled Markdown file' },
+              maxFileSize: { type: 'number', description: 'Optional: max file size in bytes to include (default: 204800 = 200KB)' },
+              extensions: {
+                type: 'array',
+                items: { type: 'string' },
+                description: 'Optional: list of file extensions to include (e.g. [".ts", ".py"]). Defaults to common source file types.',
+              },
+            },
+            required: ['dir', 'output'],
+          },
+        },
       ],
     };
   });
 
-  // Handle tool invocation requests
+  // ─── Tool Invocation ───────────────────────────────────────────────────────
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const { name, arguments: args } = request.params;
 
@@ -242,7 +334,7 @@ export async function startMCPServer(): Promise<void> {
       let resultText = '';
 
       switch (name) {
-        // PDF Tools
+        // PDF
         case 'pdf_merge': {
           const { inputs, output } = args as { inputs: string[]; output: string };
           const out = await mergePDFs(inputs, output);
@@ -252,7 +344,7 @@ export async function startMCPServer(): Promise<void> {
         case 'pdf_split': {
           const { input, outputDir, pages } = args as { input: string; outputDir: string; pages?: string };
           const files = await splitPDF(input, outputDir, pages);
-          resultText = `Split PDF successfully. Created ${files.length} files:\n${files.map((f) => `- ${f}`).join('\n')}`;
+          resultText = `Split PDF successfully. Created ${files.length} files:\n${files.map(f => `- ${f}`).join('\n')}`;
           break;
         }
         case 'pdf_rotate': {
@@ -261,8 +353,42 @@ export async function startMCPServer(): Promise<void> {
           resultText = `Rotated PDF successfully saved to: ${out}`;
           break;
         }
+        case 'pdf_search': {
+          const { input, query } = args as { input: string; query: string };
+          const results = await searchPdf(input, query);
+          if (results.length === 0) {
+            resultText = `No matches found for "${query}" in ${input}`;
+          } else {
+            const summaries = results.map(r => `Page ${r.pageNumber}:\n${r.text.slice(0, 400)}${r.text.length > 400 ? '...' : ''}`);
+            resultText = `Found ${results.length} page(s) matching "${query}":\n\n${summaries.join('\n\n---\n\n')}`;
+          }
+          break;
+        }
 
-        // Video Tools
+        // Doc
+        case 'markdown_to_pdf': {
+          const { input, output } = args as { input: string; output: string };
+          const success = await convertMdToPdf(input, output);
+          resultText = success
+            ? `Successfully converted ${input} to PDF at: ${output}`
+            : `Conversion failed. Ensure Microsoft Edge is installed and the input file exists.`;
+          break;
+        }
+        case 'read_pptx': {
+          const { input } = args as { input: string };
+          const text = await extractPptxText(input);
+          resultText = text || 'No text content found in presentation.';
+          break;
+        }
+        case 'read_docx': {
+          const { input } = args as { input: string };
+          const paragraphs = await extractDocxParagraphs(input);
+          const text = paragraphs.filter(p => p.trim()).join('\n\n');
+          resultText = text || 'No text content found in document.';
+          break;
+        }
+
+        // Video
         case 'video_trim': {
           const { input, output, startTime, duration } = args as { input: string; output: string; startTime: string; duration?: string };
           const out = await trimVideo(input, output, startTime, duration);
@@ -288,7 +414,7 @@ export async function startMCPServer(): Promise<void> {
           break;
         }
 
-        // Audio Tools
+        // Audio
         case 'audio_trim': {
           const { input, output, startTime, duration } = args as { input: string; output: string; startTime: string; duration?: string };
           const out = await trimAudio(input, output, startTime, duration);
@@ -320,7 +446,7 @@ export async function startMCPServer(): Promise<void> {
           break;
         }
 
-        // Converters
+        // Convert
         case 'convert_image': {
           const { input, output, width, height, quality } = args as { input: string; output: string; width?: number; height?: number; quality?: number };
           const out = await convertImage(input, output, { width, height, quality });
@@ -340,13 +466,50 @@ export async function startMCPServer(): Promise<void> {
           break;
         }
 
+        // GitHub
+        case 'github_list_repos': {
+          const { filter } = (args ?? {}) as { filter?: string };
+          let repos = fetchGitHubRepos();
+          if (filter) {
+            repos = repos.filter(r => r.name.toLowerCase().includes(filter.toLowerCase()));
+          }
+          resultText = JSON.stringify(
+            repos.map(r => ({
+              name: r.nameWithOwner,
+              description: r.description,
+              stars: r.stargazerCount,
+              fork: r.isFork,
+              archived: r.isArchived,
+              private: r.isPrivate,
+              updatedAt: r.updatedAt,
+            })),
+            null, 2
+          );
+          break;
+        }
+        case 'github_batch_clean': {
+          const { toArchive = [], toDelete = [] } = (args ?? {}) as { toArchive?: string[]; toDelete?: string[] };
+          if (!toArchive.length && !toDelete.length) {
+            resultText = 'No repositories specified for archiving or deletion.';
+            break;
+          }
+          const results = batchCleanRepos(toArchive, toDelete);
+          const lines = results.map(r => `${r.action === 'error' ? '✗' : '✔'}  ${r.repo} → ${r.action}${r.action === 'error' ? ': ' + r.message : ''}`);
+          resultText = lines.join('\n');
+          break;
+        }
+        case 'bundle_codebase': {
+          const { dir, output, maxFileSize, extensions } = args as { dir: string; output: string; maxFileSize?: number; extensions?: string[] };
+          const result = bundleCodebase(dir, output, { maxFileSize, extensions });
+          resultText = `✅  Bundled ${result.fileCount} files (${(result.totalBytes / 1024).toFixed(1)} KB) → ${result.outputFile}`;
+          break;
+        }
+
         default:
           throw new Error(`Tool not found: ${name}`);
       }
 
-      return {
-        content: [{ type: 'text', text: resultText }],
-      };
+      return { content: [{ type: 'text', text: resultText }] };
     } catch (err: any) {
       return {
         content: [{ type: 'text', text: `Error: ${err.message}` }],
@@ -357,7 +520,5 @@ export async function startMCPServer(): Promise<void> {
 
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  
-  // Make sure we log to stderr that server is running
-  originalError('[INFO] agent-tools MCP server running on stdio');
+  originalError('[INFO] agent-tools MCP server v2.0.0 running on stdio');
 }

@@ -36,6 +36,7 @@
     "google-tts-api": "^2.0.2",
     "node-qpdf": "^1.0.3",
     "pdf-lib": "^1.17.1",
+    "pdfreader": "^3.0.8",
     "sharp": "^0.33.5",
     "tar": "^7.5.16"
   },
