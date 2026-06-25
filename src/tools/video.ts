@@ -1,4 +1,4 @@
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -7,8 +7,8 @@ import * as fs from 'fs';
  */
 function runFFmpeg(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const cmd = `ffmpeg -y ${args.join(' ')}`;
-    exec(cmd, (error, stdout, stderr) => {
+
+    execFile('ffmpeg', ['-y', ...args], (error, stdout, stderr) => {
       if (error) {
         reject(new Error(`FFmpeg failed: ${stderr || error.message}`));
       } else {
@@ -39,14 +39,14 @@ export async function trimVideo(
 
   const args: string[] = [];
   args.push(`-ss`, startTime);
-  args.push(`-i`, `"${resolvedIn}"`);
+  args.push(`-i`, resolvedIn);
   if (duration) {
     args.push(`-t`, duration);
   }
   // Copy video and audio streams without re-encoding if possible, for speed.
   // Note: if precise frame trimming is needed, re-encoding is better, but copying is lightning fast.
   args.push(`-c:v`, `copy`, `-c:a`, `copy`);
-  args.push(`"${resolvedOut}"`);
+  args.push(resolvedOut);
 
   await runFFmpeg(args);
   return resolvedOut;
@@ -77,10 +77,10 @@ export async function mergeVideos(inputPaths: string[], outputPath: string): Pro
       `-safe`,
       `0`,
       `-i`,
-      `"${tempFileListPath}"`,
+      tempFileListPath,
       `-c`,
       `copy`,
-      `"${resolvedOut}"`,
+      resolvedOut,
     ];
     await runFFmpeg(args);
   } finally {
@@ -136,14 +136,14 @@ export async function changeVideoSpeed(
 
   const args = [
     `-i`,
-    `"${resolvedIn}"`,
+    resolvedIn,
     `-filter_complex`,
-    `"[0:v]${videoFilter}[v];[0:a]${audioFilter}[a]"`,
+    `[0:v]${videoFilter}[v];[0:a]${audioFilter}[a]`,
     `-map`,
-    `"[v]"`,
+    `[v]`,
     `-map`,
-    `"[a]"`,
-    `"${resolvedOut}"`,
+    `[a]`,
+    resolvedOut,
   ];
 
   await runFFmpeg(args);
@@ -168,12 +168,12 @@ export async function changeVideoVolume(
 
   const args = [
     `-i`,
-    `"${resolvedIn}"`,
+    resolvedIn,
     `-filter:a`,
-    `"volume=${volume}"`,
+    `volume=${volume}`,
     `-c:v`,
     `copy`, // keep video stream unchanged
-    `"${resolvedOut}"`,
+    resolvedOut,
   ];
 
   await runFFmpeg(args);
