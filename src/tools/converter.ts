@@ -1,4 +1,4 @@
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 import sharp from 'sharp';
@@ -8,8 +8,8 @@ import sharp from 'sharp';
  */
 function runFFmpeg(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const cmd = `ffmpeg -y ${args.join(' ')}`;
-    exec(cmd, (error, stdout, stderr) => {
+
+    execFile('ffmpeg', ['-y', ...args], (error, stdout, stderr) => {
       if (error) {
         reject(new Error(`FFmpeg failed: ${stderr || error.message}`));
       } else {
@@ -75,7 +75,7 @@ export async function convertAudio(inputPath: string, outputPath: string): Promi
   fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
 
   // Use ffmpeg for audio transcoding
-  const args = [`-i`, `"${resolvedIn}"`, `"${resolvedOut}"`];
+  const args = [`-i`, resolvedIn, resolvedOut];
   await runFFmpeg(args);
   return resolvedOut;
 }
@@ -93,7 +93,7 @@ export async function convertVideo(inputPath: string, outputPath: string): Promi
   fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
 
   // Use ffmpeg for video transcoding
-  const args = [`-i`, `"${resolvedIn}"`, `"${resolvedOut}"`];
+  const args = [`-i`, resolvedIn, resolvedOut];
   await runFFmpeg(args);
   return resolvedOut;
 }
