@@ -2,18 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import AdmZip from 'adm-zip';
 import { convertMdToPdf, extractPptxText, searchPdf, extractDocxParagraphs } from './tools/doc.js';
-// @ts-ignore
-import { PdfReader } from 'pdfreader';
 
-async function runTests() {
-  console.log('--- Starting Document Tools Tests ---');
-
-  const testDir = path.resolve('./test-temp');
-  if (!fs.existsSync(testDir)) {
-    fs.mkdirSync(testDir);
-  }
-
-  // 1. Test convertMdToPdf
+async function testConvertMdToPdf(testDir: string): Promise<{ mdPath: string; pdfPath: string }> {
   console.log('\n1. Testing convertMdToPdf...');
   const mdPath = path.join(testDir, 'test.md');
   const pdfPath = path.join(testDir, 'test.pdf');
@@ -30,14 +20,17 @@ This is **bold** text in a paragraph.
 Another paragraph here.
 `;
   fs.writeFileSync(mdPath, mdContent, 'utf8');
-  
+
   const convertSuccess = await convertMdToPdf(mdPath, pdfPath);
   console.log('convertMdToPdf success:', convertSuccess);
   if (!convertSuccess || !fs.existsSync(pdfPath)) {
     throw new Error('convertMdToPdf failed to produce a PDF file');
   }
 
-  // 2. Test searchPdf
+  return { mdPath, pdfPath };
+}
+
+async function testSearchPdf(pdfPath: string): Promise<void> {
   console.log('\n2. Testing searchPdf...');
   const searchResults1 = await searchPdf(pdfPath, 'Section 1');
   console.log('Search for "Section 1" results:', searchResults1);
@@ -70,8 +63,9 @@ Another paragraph here.
   if (searchResults3.length > 0) {
     throw new Error('searchPdf found a nonexistent query term');
   }
+}
 
-  // 3. Test extractDocxParagraphs
+async function testExtractDocxParagraphs(testDir: string): Promise<string> {
   console.log('\n3. Testing extractDocxParagraphs...');
   const docxPath = path.join(testDir, 'test.docx');
   const docxZip = new AdmZip();
@@ -109,11 +103,14 @@ Another paragraph here.
     throw new Error(`Unexpected paragraph 2 text: "${paragraphs[1]}"`);
   }
 
-  // 4. Test extractPptxText
+  return docxPath;
+}
+
+async function testExtractPptxText(testDir: string): Promise<string> {
   console.log('\n4. Testing extractPptxText...');
   const pptxPath = path.join(testDir, 'test.pptx');
   const pptxZip = new AdmZip();
-  
+
   // slide1.xml
   const slide1Xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">
@@ -178,16 +175,25 @@ Another paragraph here.
     throw new Error(`Unexpected PPTX extracted text:\nExpected:\n"${expectedPptxText}"\n\nGot:\n"${pptxText}"`);
   }
 
-  // 5. Test error handling
+  return pptxPath;
+}
+
+async function testErrorHandling(testDir: string): Promise<string[]> {
   console.log('\n5. Testing error handling (corrupt, encrypted, malformed files)...');
+
+  const filesToCleanUp: string[] = [];
 
   // Corrupt DOCX
   const corruptDocxPath = path.join(testDir, 'corrupt.docx');
   fs.writeFileSync(corruptDocxPath, 'not a zip file');
+  filesToCleanUp.push(corruptDocxPath);
   try {
     await extractDocxParagraphs(corruptDocxPath);
     throw new Error('Expected extractDocxParagraphs to fail on corrupt file');
   } catch (err: any) {
+    if (err.message === 'Expected extractDocxParagraphs to fail on corrupt file') {
+      throw err;
+    }
     console.log('Successfully caught DOCX corrupt error:', err.message);
   }
 
@@ -196,20 +202,28 @@ Another paragraph here.
   const malformedDocxZip = new AdmZip();
   malformedDocxZip.addFile('word/document.xml', Buffer.from('<invalid-xml><w:t>Open tag mismatch', 'utf8'));
   malformedDocxZip.writeZip(malformedDocxPath);
+  filesToCleanUp.push(malformedDocxPath);
   try {
     await extractDocxParagraphs(malformedDocxPath);
     throw new Error('Expected extractDocxParagraphs to fail on malformed XML');
   } catch (err: any) {
+    if (err.message === 'Expected extractDocxParagraphs to fail on malformed XML') {
+      throw err;
+    }
     console.log('Successfully caught DOCX malformed XML error:', err.message);
   }
 
   // Corrupt PDF
   const corruptPdfPath = path.join(testDir, 'corrupt.pdf');
   fs.writeFileSync(corruptPdfPath, 'not a pdf');
+  filesToCleanUp.push(corruptPdfPath);
   try {
     await searchPdf(corruptPdfPath, 'test');
     throw new Error('Expected searchPdf to fail on corrupt PDF');
   } catch (err: any) {
+    if (err.message === 'Expected searchPdf to fail on corrupt PDF') {
+      throw err;
+    }
     console.log('Successfully caught PDF corrupt error:', err.message);
   }
 
@@ -218,24 +232,39 @@ Another paragraph here.
   const malformedPptxZip = new AdmZip();
   malformedPptxZip.addFile('ppt/slides/slide1.xml', Buffer.from('<invalid-xml><a:t>Open tag mismatch', 'utf8'));
   malformedPptxZip.writeZip(malformedPptxPath);
+  filesToCleanUp.push(malformedPptxPath);
   try {
     await extractPptxText(malformedPptxPath);
     throw new Error('Expected extractPptxText to fail on malformed XML');
   } catch (err: any) {
+    if (err.message === 'Expected extractPptxText to fail on malformed XML') {
+      throw err;
+    }
     console.log('Successfully caught PPTX malformed XML error:', err.message);
   }
 
+  return filesToCleanUp;
+}
+
+async function runTests() {
+  console.log('--- Starting Document Tools Tests ---');
+
+  const testDir = path.resolve('./test-temp');
+  if (!fs.existsSync(testDir)) {
+    fs.mkdirSync(testDir);
+  }
+
+  const { mdPath, pdfPath } = await testConvertMdToPdf(testDir);
+  await testSearchPdf(pdfPath);
+  const docxPath = await testExtractDocxParagraphs(testDir);
+  const pptxPath = await testExtractPptxText(testDir);
+  const errorHandlingFiles = await testErrorHandling(testDir);
+
   // Clean up
   console.log('\nCleaning up temp files...');
-  fs.unlinkSync(mdPath);
-  fs.unlinkSync(pdfPath);
-  fs.unlinkSync(docxPath);
-  fs.unlinkSync(pptxPath);
-  fs.unlinkSync(corruptDocxPath);
-  fs.unlinkSync(malformedDocxPath);
-  fs.unlinkSync(corruptPdfPath);
-  fs.unlinkSync(malformedPptxPath);
-  fs.rmdirSync(testDir);
+  if (fs.existsSync(testDir)) {
+    fs.rmSync(testDir, { recursive: true, force: true });
+  }
 
   console.log('\n--- All Tests Passed Successfully! ---');
 }
