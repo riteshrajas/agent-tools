@@ -359,7 +359,7 @@ export async function startMCPServer(): Promise<void> {
           if (results.length === 0) {
             resultText = `No matches found for "${query}" in ${input}`;
           } else {
-            const summaries = results.map(r => `Page ${r.pageNumber}:\n${r.text.slice(0, 400)}${r.text.length > 400 ? '...' : ''}`);
+            const summaries = results.map(r => `Page ${r.page}:\n${r.text.slice(0, 400)}${r.text.length > 400 ? '...' : ''}`);
             resultText = `Found ${results.length} page(s) matching "${query}":\n\n${summaries.join('\n\n---\n\n')}`;
           }
           break;
@@ -500,7 +500,7 @@ export async function startMCPServer(): Promise<void> {
         }
         case 'bundle_codebase': {
           const { dir, output, maxFileSize, extensions } = args as { dir: string; output: string; maxFileSize?: number; extensions?: string[] };
-          const result = bundleCodebase(dir, output, { maxFileSize, extensions });
+          const result = await bundleCodebase(dir, output, { maxFileSize, extensions });
           resultText = `✅  Bundled ${result.fileCount} files (${(result.totalBytes / 1024).toFixed(1)} KB) → ${result.outputFile}`;
           break;
         }

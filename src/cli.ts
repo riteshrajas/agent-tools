@@ -83,7 +83,7 @@ export function setupCLI(): Command {
         } else {
           console.log(`Found ${results.length} matching page(s):`);
           results.forEach(r => {
-            console.log(`\n--- Page ${r.pageNumber} ---`);
+            console.log(`\n--- Page ${r.page} ---`);
             console.log(r.text.slice(0, 500) + (r.text.length > 500 ? '...' : ''));
           });
         }
@@ -413,7 +413,7 @@ export function setupCLI(): Command {
       try {
         const extensions = options.ext ? options.ext.split(',') : undefined;
         console.log(`Bundling codebase at ${dir}...`);
-        const result = bundleCodebase(dir, output, {
+        const result = await bundleCodebase(dir, output, {
           maxFileSize: options.maxSize,
           extensions,
         });
