@@ -6,3 +6,7 @@ temp_*
 .env.*
 .DS_Store
 agent-tools.exe
+dummy_test_dir/
+bundle_output.md
+dummy_test_dir_async/
+bundle_output_async.md

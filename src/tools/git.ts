@@ -338,11 +338,11 @@ function walkDir(dirPath: string, ignoreDirs: Set<string>): string[] {
   return files;
 }
 
-export function bundleCodebase(
+export async function bundleCodebase(
   dirPath: string,
   outputPath: string,
   options: { maxFileSize?: number; extensions?: string[] } = {}
-): { outputFile: string; fileCount: number; totalBytes: number } {
+): Promise<{ outputFile: string; fileCount: number; totalBytes: number }> {
   const resolvedDir = path.resolve(dirPath);
   if (!fs.existsSync(resolvedDir)) throw new Error(`Directory not found: ${dirPath}`);
 
@@ -353,8 +353,11 @@ export function bundleCodebase(
   const maxSize = options.maxFileSize ?? 200 * 1024; // 200 KB default
 
   const files = walkDir(resolvedDir, DEFAULT_IGNORE);
-  const lines: string[] = [];
 
+  // Fast path filtering before I/O
+  const validFiles = files.filter(f => allowedExts.has(path.extname(f).toLowerCase()));
+
+  const lines: string[] = [];
   lines.push(`# Codebase Bundle: \`${path.basename(resolvedDir)}\``);
   lines.push(`\nGenerated: ${new Date().toISOString()}\n`);
   lines.push(`---\n`);
@@ -362,32 +365,46 @@ export function bundleCodebase(
   let fileCount = 0;
   let totalBytes = 0;
 
-  for (const file of files) {
-    const ext = path.extname(file).toLowerCase();
-    if (!allowedExts.has(ext)) continue;
+  const CHUNK_SIZE = 1000;
 
-    const stat = fs.statSync(file);
-    if (stat.size > maxSize) continue;
+  for (let i = 0; i < validFiles.length; i += CHUNK_SIZE) {
+    const chunk = validFiles.slice(i, i + CHUNK_SIZE);
 
-    const relPath = path.relative(resolvedDir, file);
-    const content = fs.readFileSync(file, 'utf8');
-    const lang = ext.replace('.', '') || 'text';
+    const results = await Promise.all(chunk.map(async file => {
+      try {
+        const stat = await fs.promises.stat(file);
+        if (stat.size > maxSize) return null;
 
-    lines.push(`## \`${relPath}\``);
-    lines.push('');
-    lines.push('```' + lang);
-    lines.push(content);
-    lines.push('```');
-    lines.push('');
+        const content = await fs.promises.readFile(file, 'utf8');
+        return { file, stat, content };
+      } catch (err) {
+        return null;
+      }
+    }));
 
-    fileCount++;
-    totalBytes += stat.size;
+    for (const result of results) {
+      if (!result) continue;
+
+      const ext = path.extname(result.file).toLowerCase();
+      const lang = ext.replace('.', '') || 'text';
+      const relPath = path.relative(resolvedDir, result.file);
+
+      lines.push(`## \`${relPath}\``);
+      lines.push('');
+      lines.push('```' + lang);
+      lines.push(result.content);
+      lines.push('```');
+      lines.push('');
+
+      fileCount++;
+      totalBytes += result.stat.size;
+    }
   }
 
   const output = lines.join('\n');
   const resolvedOutput = path.resolve(outputPath);
-  fs.mkdirSync(path.dirname(resolvedOutput), { recursive: true });
-  fs.writeFileSync(resolvedOutput, output, 'utf8');
+  await fs.promises.mkdir(path.dirname(resolvedOutput), { recursive: true });
+  await fs.promises.writeFile(resolvedOutput, output, 'utf8');
 
   return { outputFile: resolvedOutput, fileCount, totalBytes };
 }
