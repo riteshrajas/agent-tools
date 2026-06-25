@@ -74,11 +74,11 @@ startxref
 
 // Intercept child_process.execFile to inspect generated HTML and mock timeouts
 let shouldSimulateTimeout = false;
-let lastGeneratedHtml: string | null = null;
+let lastGeneratedHtml: any;
 let lastExecOptions: any = null;
 
 const originalExecFile = child_process.execFile;
-(child_process as any).execFile = function (file: string, args: string[], options: any, callback: any) {
+Object.defineProperty(child_process, 'execFile', { value:  = function (file: string, args: string[], options: any, callback: any) {, writable: true });
   lastExecOptions = options;
   // Capture HTML content if passed as file:/// path
   const htmlArg = args.find(arg => arg.includes('md_to_pdf_') && arg.endsWith('.html'));
