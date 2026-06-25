@@ -74,7 +74,7 @@ startxref
 
 // Intercept child_process.execFile to inspect generated HTML and mock timeouts
 let shouldSimulateTimeout = false;
-let lastGeneratedHtml: string | null = null;
+let lastGeneratedHtml: string = "";
 let lastExecOptions: any = null;
 
 const originalExecFile = child_process.execFile;
@@ -147,7 +147,7 @@ And spaces in scheme: <a href="  javascript:alert(3)">Link 2</a>
 And html entities in scheme: <a href="java&#x09;script:alert(4)">Link 3</a>
 `;
   fs.writeFileSync(injectMdPath, injectContent, 'utf8');
-  lastGeneratedHtml = null;
+  lastGeneratedHtml = "";
   const injectSuccess = await convertMdToPdf(injectMdPath, injectPdfPath);
   assert.strictEqual(injectSuccess, true, 'Should convert injection markdown successfully');
   assert.ok(lastGeneratedHtml, 'Should have captured generated HTML');
