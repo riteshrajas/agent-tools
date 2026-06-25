@@ -96,6 +96,9 @@ export async function changeAudioSpeed(
   outputPath: string,
   speed: number
 ): Promise<string> {
+  if (speed <= 0) {
+    throw new Error("Speed must be greater than 0.");
+  }
   const resolvedIn = path.resolve(inputPath);
   const resolvedOut = path.resolve(outputPath);
   if (!fs.existsSync(resolvedIn)) {
