@@ -127,89 +127,80 @@ interface TextItem {
 }
 
 /**
- * Converts a Markdown file to HTML, writes to a temp file, and uses MS Edge in headless mode
- * to print it to PDF. Follows the styling and simple markdown parsing from md_to_pdf.py.
+ * Converts markdown string to HTML string following the styling and simple markdown parsing.
  */
-export async function convertMdToPdf(mdPath: string, pdfPath: string): Promise<boolean> {
-  const resolvedMdPath = path.resolve(mdPath);
-  if (!fs.existsSync(resolvedMdPath)) {
-    console.error(`Error: ${mdPath} does not exist`);
-    return false;
+export function markdownToHtml(markdownContent: string): string {
+  const lines = markdownContent.split(/\r?\n/);
+  const htmlLines: string[] = [];
+  let inList = false;
+
+  for (const line of lines) {
+    const stripped = line.trim();
+    if (!stripped) {
+      if (inList) {
+        htmlLines.push("</ul>");
+        inList = false;
+      }
+      continue;
+    }
+
+    if (stripped.startsWith('# ')) {
+      if (inList) {
+        htmlLines.push("</ul>");
+        inList = false;
+      }
+      const text = sanitizeUserMarkdown(stripped.substring(2));
+      htmlLines.push(`<h1 class='title'>${text}</h1>`);
+    } else if (stripped.startsWith('## ')) {
+      if (inList) {
+        htmlLines.push("</ul>");
+        inList = false;
+      }
+      const text = sanitizeUserMarkdown(stripped.substring(3));
+      htmlLines.push(`<h2>${text}</h2>`);
+    } else if (stripped.startsWith('### ')) {
+      if (inList) {
+        htmlLines.push("</ul>");
+        inList = false;
+      }
+      const text = sanitizeUserMarkdown(stripped.substring(4));
+      htmlLines.push(`<h3>${text}</h3>`);
+    } else if (stripped.startsWith('* ') || stripped.startsWith('- ')) {
+      if (!inList) {
+        htmlLines.push("<ul>");
+        inList = true;
+      }
+      let itemText = sanitizeUserMarkdown(stripped.substring(2));
+      while (itemText.includes('**')) {
+        itemText = itemText.replace('**', '<strong>').replace('**', '</strong>');
+      }
+      htmlLines.push(`<li>${itemText}</li>`);
+    } else if (stripped === '---') {
+      if (inList) {
+        htmlLines.push("</ul>");
+        inList = false;
+      }
+      htmlLines.push("<hr/>");
+    } else {
+      if (inList) {
+        htmlLines.push("</ul>");
+        inList = false;
+      }
+      let pText = sanitizeUserMarkdown(stripped);
+      while (pText.includes('**')) {
+        pText = pText.replace('**', '<strong>').replace('**', '</strong>');
+      }
+      htmlLines.push(`<p>${pText}</p>`);
+    }
   }
 
-  try {
-    const content = fs.readFileSync(resolvedMdPath, 'utf8');
-    const lines = content.split(/\r?\n/);
-    const htmlLines: string[] = [];
-    let inList = false;
+  if (inList) {
+    htmlLines.push("</ul>");
+  }
 
-    for (const line of lines) {
-      const stripped = line.trim();
-      if (!stripped) {
-        if (inList) {
-          htmlLines.push("</ul>");
-          inList = false;
-        }
-        continue;
-      }
+  const htmlBody = htmlLines.join('\n');
 
-      if (stripped.startsWith('# ')) {
-        if (inList) {
-          htmlLines.push("</ul>");
-          inList = false;
-        }
-        const text = sanitizeUserMarkdown(stripped.substring(2));
-        htmlLines.push(`<h1 class='title'>${text}</h1>`);
-      } else if (stripped.startsWith('## ')) {
-        if (inList) {
-          htmlLines.push("</ul>");
-          inList = false;
-        }
-        const text = sanitizeUserMarkdown(stripped.substring(3));
-        htmlLines.push(`<h2>${text}</h2>`);
-      } else if (stripped.startsWith('### ')) {
-        if (inList) {
-          htmlLines.push("</ul>");
-          inList = false;
-        }
-        const text = sanitizeUserMarkdown(stripped.substring(4));
-        htmlLines.push(`<h3>${text}</h3>`);
-      } else if (stripped.startsWith('* ') || stripped.startsWith('- ')) {
-        if (!inList) {
-          htmlLines.push("</ul>");
-          inList = true;
-        }
-        let itemText = sanitizeUserMarkdown(stripped.substring(2));
-        while (itemText.includes('**')) {
-          itemText = itemText.replace('**', '<strong>').replace('**', '</strong>');
-        }
-        htmlLines.push(`<li>${itemText}</li>`);
-      } else if (stripped === '---') {
-        if (inList) {
-          htmlLines.push("</ul>");
-          inList = false;
-        }
-        htmlLines.push("<hr/>");
-      } else {
-        if (inList) {
-          htmlLines.push("</ul>");
-          inList = false;
-        }
-        let pText = sanitizeUserMarkdown(stripped);
-        while (pText.includes('**')) {
-          pText = pText.replace('**', '<strong>').replace('**', '</strong>');
-        }
-        htmlLines.push(`<p>${pText}</p>`);
-      }
-    }
-
-    if (inList) {
-      htmlLines.push("</ul>");
-    }
-
-    const htmlBody = htmlLines.join('\n');
-
-    const htmlContent = `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
@@ -265,36 +256,61 @@ export async function convertMdToPdf(mdPath: string, pdfPath: string): Promise<b
 </body>
 </html>
 `;
+}
 
-    const tempHtmlPath = path.join(
-      os.tmpdir(),
-      `md_to_pdf_${crypto.randomUUID()}.html`
-    );
-    fs.writeFileSync(tempHtmlPath, htmlContent, 'utf8');
+/**
+ * Uses MS Edge in headless mode to print HTML content to PDF.
+ */
+export async function htmlToPdf(htmlContent: string, pdfPath: string): Promise<boolean> {
+  const tempHtmlPath = path.join(
+    os.tmpdir(),
+    `md_to_pdf_${crypto.randomUUID()}.html`
+  );
+  fs.writeFileSync(tempHtmlPath, htmlContent, 'utf8');
 
-    try {
-      const edgePath = getEdgePath();
-      const resolvedPdfPath = path.resolve(pdfPath);
-      fs.mkdirSync(path.dirname(resolvedPdfPath), { recursive: true });
+  try {
+    const edgePath = getEdgePath();
+    const resolvedPdfPath = path.resolve(pdfPath);
+    fs.mkdirSync(path.dirname(resolvedPdfPath), { recursive: true });
 
-      const args = [
-        '--headless',
-        '--disable-gpu',
-        `--print-to-pdf=${resolvedPdfPath}`,
-        `file:///${path.resolve(tempHtmlPath)}`
-      ];
+    const args = [
+      '--headless',
+      '--disable-gpu',
+      `--print-to-pdf=${resolvedPdfPath}`,
+      `file:///${path.resolve(tempHtmlPath)}`
+    ];
 
-      await execFilePromise(edgePath, args, { timeout: 30000 });
-      console.log(`Successfully converted ${mdPath} to ${pdfPath}`);
-      return true;
-    } catch (err) {
-      console.error(`Error during PDF conversion: ${err}`);
-      return false;
-    } finally {
-      if (fs.existsSync(tempHtmlPath)) {
-        fs.unlinkSync(tempHtmlPath);
-      }
+    await execFilePromise(edgePath, args, { timeout: 30000 });
+    return true;
+  } catch (err) {
+    console.error(`Error during PDF conversion: ${err}`);
+    return false;
+  } finally {
+    if (fs.existsSync(tempHtmlPath)) {
+      fs.unlinkSync(tempHtmlPath);
     }
+  }
+}
+
+/**
+ * Converts a Markdown file to HTML, writes to a temp file, and uses MS Edge in headless mode
+ * to print it to PDF. Follows the styling and simple markdown parsing from md_to_pdf.py.
+ */
+export async function convertMdToPdf(mdPath: string, pdfPath: string): Promise<boolean> {
+  const resolvedMdPath = path.resolve(mdPath);
+  if (!fs.existsSync(resolvedMdPath)) {
+    console.error(`Error: ${mdPath} does not exist`);
+    return false;
+  }
+
+  try {
+    const content = fs.readFileSync(resolvedMdPath, 'utf8');
+    const htmlContent = markdownToHtml(content);
+    const success = await htmlToPdf(htmlContent, pdfPath);
+    if (success) {
+      console.log(`Successfully converted ${mdPath} to ${pdfPath}`);
+    }
+    return success;
   } catch (err) {
     console.error(`Error processing Markdown conversion: ${err}`);
     return false;
