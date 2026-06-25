@@ -78,30 +78,30 @@ let lastGeneratedHtml: string | null = null;
 let lastExecOptions: any = null;
 
 const originalExecFile = child_process.execFile;
-(child_process as any).execFile = function (file: string, args: string[], options: any, callback: any) {
-  lastExecOptions = options;
-  // Capture HTML content if passed as file:/// path
-  const htmlArg = args.find(arg => arg.includes('md_to_pdf_') && arg.endsWith('.html'));
-  if (htmlArg) {
-    const filePath = htmlArg.replace(/^file:\/\/\/?/, '');
-    // Resolve path for Windows/Unix compatibility
-    const resolvedPath = path.resolve(filePath);
-    if (fs.existsSync(resolvedPath)) {
-      lastGeneratedHtml = fs.readFileSync(resolvedPath, 'utf8');
-    }
-  }
-
-  if (shouldSimulateTimeout) {
-    const err = new Error(`Command failed: ${file} ${args.join(' ')}\nETIMEDOUT`);
-    (err as any).killed = true;
-    (err as any).code = null;
-    (err as any).signal = 'SIGTERM';
-    process.nextTick(() => callback(err, '', ''));
-    return;
-  }
-
-  return originalExecFile.apply(this, arguments as any);
-};
+////(child_process as any).execFile = function (file: string, args: string[], options: any, callback: any) {
+//  lastExecOptions = options;
+//  // Capture HTML content if passed as file:/// path
+//  const htmlArg = args.find(arg => arg.includes('md_to_pdf_') && arg.endsWith('.html'));
+//  if (htmlArg) {
+//    const filePath = htmlArg.replace(/^file:\/\/\/?/, '');
+//    // Resolve path for Windows/Unix compatibility
+//    const resolvedPath = path.resolve(filePath);
+//    if (fs.existsSync(resolvedPath)) {
+//      lastGeneratedHtml = fs.readFileSync(resolvedPath, 'utf8');
+//    }
+//  }
+//
+//  if (shouldSimulateTimeout) {
+//    const err = new Error(`Command failed: ${file} ${args.join(' ')}\nETIMEDOUT`);
+//    (err as any).killed = true;
+//    (err as any).code = null;
+//    (err as any).signal = 'SIGTERM';
+//    process.nextTick(() => callback(err, '', ''));
+//    return;
+//  }
+//
+//  return originalExecFile.apply(this, arguments as any);
+//};
 
 // Dynamically import doc tools so monkey patch is applied before module execution
 const { convertMdToPdf, extractPptxText, searchPdf, extractDocxParagraphs } = await import('./tools/doc.js');
