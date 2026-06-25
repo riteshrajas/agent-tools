@@ -2,8 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import AdmZip from 'adm-zip';
 import { convertMdToPdf, extractPptxText, searchPdf, extractDocxParagraphs } from './tools/doc.js';
-// @ts-ignore
-import { PdfReader } from 'pdfreader';
 
 async function runTests() {
   console.log('--- Starting Document Tools Tests ---');
