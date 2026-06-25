@@ -359,7 +359,7 @@ export async function startMCPServer(): Promise<void> {
           if (results.length === 0) {
             resultText = `No matches found for "${query}" in ${input}`;
           } else {
-            const summaries = results.map(r => `Page ${r.pageNumber}:\n${r.text.slice(0, 400)}${r.text.length > 400 ? '...' : ''}`);
+            const summaries = results.map(r => `Page ${r.page}:\n${r.text.slice(0, 400)}${r.text.length > 400 ? '...' : ''}`);
             resultText = `Found ${results.length} page(s) matching "${query}":\n\n${summaries.join('\n\n---\n\n')}`;
           }
           break;
