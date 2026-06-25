@@ -13,7 +13,7 @@
     "package": "npm run build && npm run bundle && npx @yao-pkg/pkg . --targets node22-win-x64 --output agent-tools.exe",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 0"
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest"
   },
   "keywords": [
     "mcp",
@@ -43,9 +43,13 @@
   "devDependencies": {
     "@types/adm-zip": "^0.5.8",
     "@types/fluent-ffmpeg": "^2.1.27",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.11.24",
     "@types/tar": "^6.1.13",
+    "cross-env": "^10.1.0",
     "esbuild": "^0.28.1",
+    "jest": "^30.4.2",
+    "ts-jest": "^29.4.11",
     "tsx": "^4.7.1",
     "typescript": "^5.3.3"
   },
