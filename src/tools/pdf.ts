@@ -17,7 +17,7 @@ export async function mergePDFs(inputPaths: string[], outputPath: string): Promi
     if (!fs.existsSync(resolvedPath)) {
       throw new Error(`Input file not found: ${inputPath}`);
     }
-    const pdfBytes = fs.readFileSync(resolvedPath);
+    const pdfBytes = await fs.promises.readFile(resolvedPath);
     const pdfDoc = await PDFDocument.load(pdfBytes);
     const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
     copiedPages.forEach((page) => mergedPdf.addPage(page));
@@ -25,8 +25,8 @@ export async function mergePDFs(inputPaths: string[], outputPath: string): Promi
 
   const mergedPdfBytes = await mergedPdf.save();
   const resolvedOutputPath = path.resolve(outputPath);
-  fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
-  fs.writeFileSync(resolvedOutputPath, mergedPdfBytes);
+  await fs.promises.mkdir(path.dirname(resolvedOutputPath), { recursive: true });
+  await fs.promises.writeFile(resolvedOutputPath, mergedPdfBytes);
   return resolvedOutputPath;
 }
 
@@ -43,7 +43,7 @@ export async function splitPDF(
     throw new Error(`Input file not found: ${inputPath}`);
   }
 
-  const pdfBytes = fs.readFileSync(resolvedInputPath);
+  const pdfBytes = await fs.promises.readFile(resolvedInputPath);
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const totalPages = pdfDoc.getPageCount();
 
@@ -79,7 +79,7 @@ export async function splitPDF(
   }
 
   const resolvedOutputDir = path.resolve(outputDir);
-  fs.mkdirSync(resolvedOutputDir, { recursive: true });
+  await fs.promises.mkdir(resolvedOutputDir, { recursive: true });
   const createdFiles: string[] = [];
 
   if (pages) {
@@ -91,7 +91,7 @@ export async function splitPDF(
     
     const baseName = path.basename(resolvedInputPath, '.pdf');
     const outPath = path.join(resolvedOutputDir, `${baseName}_extracted.pdf`);
-    fs.writeFileSync(outPath, newPdfBytes);
+    await fs.promises.writeFile(outPath, newPdfBytes);
     createdFiles.push(outPath);
   } else {
     // Split into individual pages
@@ -103,7 +103,7 @@ export async function splitPDF(
       const newPdfBytes = await newPdf.save();
 
       const outPath = path.join(resolvedOutputDir, `${baseName}_page_${index + 1}.pdf`);
-      fs.writeFileSync(outPath, newPdfBytes);
+      await fs.promises.writeFile(outPath, newPdfBytes);
       createdFiles.push(outPath);
     }
   }
@@ -129,7 +129,7 @@ export async function rotatePDF(
     throw new Error(`Input file not found: ${inputPath}`);
   }
 
-  const pdfBytes = fs.readFileSync(resolvedInputPath);
+  const pdfBytes = await fs.promises.readFile(resolvedInputPath);
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const totalPages = pdfDoc.getPageCount();
 
@@ -162,8 +162,8 @@ export async function rotatePDF(
 
   const rotatedPdfBytes = await pdfDoc.save();
   const resolvedOutputPath = path.resolve(outputPath);
-  fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
-  fs.writeFileSync(resolvedOutputPath, rotatedPdfBytes);
+  await fs.promises.mkdir(path.dirname(resolvedOutputPath), { recursive: true });
+  await fs.promises.writeFile(resolvedOutputPath, rotatedPdfBytes);
   return resolvedOutputPath;
 }
 
@@ -172,7 +172,7 @@ export async function compressPDF(inputPath: string, outputPath: string): Promis
   const resolvedIn = path.resolve(inputPath);
   const resolvedOut = path.resolve(outputPath);
   if (!fs.existsSync(resolvedIn)) throw new Error(`Input file not found: ${inputPath}`);
-  fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
+  await fs.promises.mkdir(path.dirname(resolvedOut), { recursive: true });
 
   return new Promise((resolve, reject) => {
     execFile('qpdf', ['--linearize', resolvedIn, resolvedOut], (error, stdout, stderr) => {
@@ -186,7 +186,7 @@ export async function protectPDF(inputPath: string, outputPath: string, userPass
   const resolvedIn = path.resolve(inputPath);
   const resolvedOut = path.resolve(outputPath);
   if (!fs.existsSync(resolvedIn)) throw new Error(`Input file not found: ${inputPath}`);
-  fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
+  await fs.promises.mkdir(path.dirname(resolvedOut), { recursive: true });
 
   const options = {
     keyLength: 256,
@@ -202,7 +202,7 @@ export async function unlockPDF(inputPath: string, outputPath: string, password:
   const resolvedIn = path.resolve(inputPath);
   const resolvedOut = path.resolve(outputPath);
   if (!fs.existsSync(resolvedIn)) throw new Error(`Input file not found: ${inputPath}`);
-  fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
+  await fs.promises.mkdir(path.dirname(resolvedOut), { recursive: true });
 
   qpdf.decrypt(resolvedIn, password, resolvedOut);
   return resolvedOut;
@@ -213,7 +213,7 @@ export async function addPageNumbers(inputPath: string, outputPath: string): Pro
   const resolvedOut = path.resolve(outputPath);
   if (!fs.existsSync(resolvedIn)) throw new Error(`Input file not found: ${inputPath}`);
 
-  const pdfBytes = fs.readFileSync(resolvedIn);
+  const pdfBytes = await fs.promises.readFile(resolvedIn);
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const pages = pdfDoc.getPages();
 
@@ -231,8 +231,8 @@ export async function addPageNumbers(inputPath: string, outputPath: string): Pro
   }
 
   const newPdfBytes = await pdfDoc.save();
-  fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
-  fs.writeFileSync(resolvedOut, newPdfBytes);
+  await fs.promises.mkdir(path.dirname(resolvedOut), { recursive: true });
+  await fs.promises.writeFile(resolvedOut, newPdfBytes);
   return resolvedOut;
 }
 
@@ -240,7 +240,7 @@ export async function pdfToOffice(inputPath: string, outputDir: string, format: 
   const resolvedIn = path.resolve(inputPath);
   const resolvedOutDir = path.resolve(outputDir);
   if (!fs.existsSync(resolvedIn)) throw new Error(`Input file not found: ${inputPath}`);
-  fs.mkdirSync(resolvedOutDir, { recursive: true });
+  await fs.promises.mkdir(resolvedOutDir, { recursive: true });
 
   return new Promise((resolve, reject) => {
     execFile('soffice', ['--headless', '--infilter="writer_pdf_import"', '--convert-to', format, resolvedIn, '--outdir', resolvedOutDir], (error, stdout, stderr) => {
@@ -257,7 +257,7 @@ export async function officeToPDF(inputPath: string, outputDir: string): Promise
   const resolvedIn = path.resolve(inputPath);
   const resolvedOutDir = path.resolve(outputDir);
   if (!fs.existsSync(resolvedIn)) throw new Error(`Input file not found: ${inputPath}`);
-  fs.mkdirSync(resolvedOutDir, { recursive: true });
+  await fs.promises.mkdir(resolvedOutDir, { recursive: true });
 
   return new Promise((resolve, reject) => {
     execFile('soffice', ['--headless', '--convert-to', 'pdf', resolvedIn, '--outdir', resolvedOutDir], (error, stdout, stderr) => {
@@ -281,7 +281,7 @@ export async function imagesToPDF(imagePaths: string[], outputPath: string): Pro
     const resolvedPath = path.resolve(p);
     if (!fs.existsSync(resolvedPath)) throw new Error(`Image not found: ${p}`);
 
-    const imageBytes = fs.readFileSync(resolvedPath);
+    const imageBytes = await fs.promises.readFile(resolvedPath);
     let pdfImage;
     if (p.toLowerCase().endsWith('.png')) {
       pdfImage = await pdfDoc.embedPng(imageBytes);
@@ -302,7 +302,7 @@ export async function imagesToPDF(imagePaths: string[], outputPath: string): Pro
   }
 
   const newPdfBytes = await pdfDoc.save();
-  fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
-  fs.writeFileSync(resolvedOut, newPdfBytes);
+  await fs.promises.mkdir(path.dirname(resolvedOut), { recursive: true });
+  await fs.promises.writeFile(resolvedOut, newPdfBytes);
   return resolvedOut;
 }
