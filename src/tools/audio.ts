@@ -1,3 +1,4 @@
+import ffmpeg from 'fluent-ffmpeg';
 import { exec } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -35,17 +36,18 @@ export async function trimAudio(
 
   fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
 
-  const args: string[] = [];
-  args.push(`-ss`, startTime);
-  args.push(`-i`, `"${resolvedIn}"`);
-  if (duration) {
-    args.push(`-t`, duration);
-  }
-  args.push(`-acodec`, `copy`); // Fast copy if possible
-  args.push(`"${resolvedOut}"`);
-
-  await runFFmpeg(args);
-  return resolvedOut;
+  return new Promise((resolve, reject) => {
+    let command = ffmpeg(resolvedIn).setStartTime(startTime);
+    if (duration !== undefined) {
+      command = command.setDuration(duration);
+    }
+    command
+      .audioCodec('copy')
+      .output(resolvedOut)
+      .on('end', () => resolve(resolvedOut))
+      .on('error', (err: any) => reject(new Error(`Failed to trim audio: ${err.message}`)))
+      .run();
+  });
 }
 
 /**
