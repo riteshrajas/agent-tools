@@ -154,17 +154,17 @@ And html entities in scheme: <a href="java&#x09;script:alert(4)">Link 3</a>
 
   console.log('Verifying HTML sanitization rules in intermediate HTML...');
   // 1. Script tag should be escaped
-  assert.ok(!lastGeneratedHtml.includes('<script>'), 'Script tag should not be present');
-  assert.ok(lastGeneratedHtml.includes('&lt;script&gt;'), 'Script tag must be escaped');
+  assert.ok(!(lastGeneratedHtml as string).includes('<script>'), 'Script tag should not be present');
+  assert.ok((lastGeneratedHtml as string).includes('&lt;script&gt;'), 'Script tag must be escaped');
   // 2. Iframe tag should be escaped
-  assert.ok(!lastGeneratedHtml.includes('<iframe'), 'Iframe tag should not be present');
-  assert.ok(lastGeneratedHtml.includes('&lt;iframe'), 'Iframe tag must be escaped');
+  assert.ok(!(lastGeneratedHtml as string).includes('<iframe'), 'Iframe tag should not be present');
+  assert.ok((lastGeneratedHtml as string).includes('&lt;iframe'), 'Iframe tag must be escaped');
   // 3. Event handler should be stripped
-  assert.ok(!lastGeneratedHtml.includes('onclick'), 'onclick attribute must be stripped');
-  assert.ok(lastGeneratedHtml.includes('<div  class="my-div">Content</div>'), 'div content should remain');
+  assert.ok(!(lastGeneratedHtml as string).includes('onclick'), 'onclick attribute must be stripped');
+  assert.ok((lastGeneratedHtml as string).includes('<div  class="my-div">Content</div>'), 'div content should remain');
   // 4. javascript: links should be stripped
-  assert.ok(!lastGeneratedHtml.includes('javascript:'), 'javascript URL must be stripped');
-  assert.ok(lastGeneratedHtml.includes('href=""') || !lastGeneratedHtml.includes('href="javascript'), 'javascript URL should be stripped');
+  assert.ok(!(lastGeneratedHtml as string).includes('javascript:'), 'javascript URL must be stripped');
+  assert.ok((lastGeneratedHtml as string).includes('href=""') || !(lastGeneratedHtml as string).includes('href="javascript'), 'javascript URL should be stripped');
 
   // Case 1.4: Edge Timeout Handling
   console.log('Case 1.4: Edge timeout test...');
