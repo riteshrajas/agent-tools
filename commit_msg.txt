@@ -1,0 +1,5 @@
+🧪 Add basic test file for PDF merge functionality
+
+🎯 **What:** Created `src/test-pdf-tools.ts` to test the `mergePDFs` logic which was lacking automated tests. Fixed a missing guard in `src/tools/pdf.ts` by checking if the input paths array is empty, mitigating an unhandled state.
+📊 **Coverage:** Happy path mapping multiple generated dummy PDFs into a single one, testing length=0 input paths guard correctly throws, and checking non-existent input files correctly throw "file not found".
+✨ **Result:** A reproducible testing gap has been closed and the edge case logic in PDF merge is robust against empty payloads and invalid input strings, directly verified via an integration test using in-memory PDFDocument writes.

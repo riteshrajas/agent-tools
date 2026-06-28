@@ -10,6 +10,9 @@ import * as path from 'path';
  * Merges multiple PDF files into a single PDF.
  */
 export async function mergePDFs(inputPaths: string[], outputPath: string): Promise<string> {
+  if (inputPaths.length === 0) {
+    throw new Error("No input files provided for merging.");
+  }
   const mergedPdf = await PDFDocument.create();
 
   for (const inputPath of inputPaths) {
