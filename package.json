@@ -13,7 +13,7 @@
     "package": "npm run build && npm run bundle && npx @yao-pkg/pkg . --targets node22-win-x64 --output agent-tools.exe",
     "start": "node dist/index.js",
     "dev": "tsx src/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 0"
+    "test": "vitest run"
   },
   "keywords": [
     "mcp",
@@ -43,11 +43,12 @@
   "devDependencies": {
     "@types/adm-zip": "^0.5.8",
     "@types/fluent-ffmpeg": "^2.1.27",
-    "@types/node": "^20.11.24",
+    "@types/node": "^20.19.43",
     "@types/tar": "^6.1.13",
     "esbuild": "^0.28.1",
     "tsx": "^4.7.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.3.3",
+    "vitest": "^4.1.9"
   },
   "pkg": {
     "assets": [

@@ -10,6 +10,9 @@ import * as path from 'path';
  * Merges multiple PDF files into a single PDF.
  */
 export async function mergePDFs(inputPaths: string[], outputPath: string): Promise<string> {
+  if (inputPaths.length === 0) {
+    throw new Error("No input files provided for merging.");
+  }
   const mergedPdf = await PDFDocument.create();
 
   for (const inputPath of inputPaths) {
@@ -26,7 +29,7 @@ export async function mergePDFs(inputPaths: string[], outputPath: string): Promi
   const mergedPdfBytes = await mergedPdf.save();
   const resolvedOutputPath = path.resolve(outputPath);
   fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
-  fs.writeFileSync(resolvedOutputPath, mergedPdfBytes);
+  await fs.promises.writeFile(resolvedOutputPath, mergedPdfBytes);
   return resolvedOutputPath;
 }
 
@@ -91,21 +94,24 @@ export async function splitPDF(
     
     const baseName = path.basename(resolvedInputPath, '.pdf');
     const outPath = path.join(resolvedOutputDir, `${baseName}_extracted.pdf`);
-    fs.writeFileSync(outPath, newPdfBytes);
+    await fs.promises.writeFile(outPath, newPdfBytes);
     createdFiles.push(outPath);
   } else {
     // Split into individual pages
     const baseName = path.basename(resolvedInputPath, '.pdf');
-    for (const index of targetIndices) {
+    const writePromises = targetIndices.map(async (index) => {
       const newPdf = await PDFDocument.create();
       const [copiedPage] = await newPdf.copyPages(pdfDoc, [index]);
       newPdf.addPage(copiedPage);
       const newPdfBytes = await newPdf.save();
 
       const outPath = path.join(resolvedOutputDir, `${baseName}_page_${index + 1}.pdf`);
-      fs.writeFileSync(outPath, newPdfBytes);
-      createdFiles.push(outPath);
-    }
+      await fs.promises.writeFile(outPath, newPdfBytes);
+      return outPath;
+    });
+
+    const results = await Promise.all(writePromises);
+    createdFiles.push(...results);
   }
 
   return createdFiles;
@@ -163,7 +169,7 @@ export async function rotatePDF(
   const rotatedPdfBytes = await pdfDoc.save();
   const resolvedOutputPath = path.resolve(outputPath);
   fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
-  fs.writeFileSync(resolvedOutputPath, rotatedPdfBytes);
+  await fs.promises.writeFile(resolvedOutputPath, rotatedPdfBytes);
   return resolvedOutputPath;
 }
 
@@ -232,7 +238,7 @@ export async function addPageNumbers(inputPath: string, outputPath: string): Pro
 
   const newPdfBytes = await pdfDoc.save();
   fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
-  fs.writeFileSync(resolvedOut, newPdfBytes);
+  await fs.promises.writeFile(resolvedOut, newPdfBytes);
   return resolvedOut;
 }
 
@@ -303,6 +309,6 @@ export async function imagesToPDF(imagePaths: string[], outputPath: string): Pro
 
   const newPdfBytes = await pdfDoc.save();
   fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
-  fs.writeFileSync(resolvedOut, newPdfBytes);
+  await fs.promises.writeFile(resolvedOut, newPdfBytes);
   return resolvedOut;
 }
