@@ -3,15 +3,7 @@ import * as path from 'path';
 import AdmZip from 'adm-zip';
 import { convertMdToPdf, extractPptxText, searchPdf, extractDocxParagraphs } from './tools/doc.js';
 
-async function runTests() {
-  console.log('--- Starting Document Tools Tests ---');
-
-  const testDir = path.resolve('./test-temp');
-  if (!fs.existsSync(testDir)) {
-    fs.mkdirSync(testDir);
-  }
-
-  // 1. Test convertMdToPdf
+async function testConvertMdToPdf(testDir: string): Promise<{ mdPath: string; pdfPath: string }> {
   console.log('\n1. Testing convertMdToPdf...');
   const mdPath = path.join(testDir, 'test.md');
   const pdfPath = path.join(testDir, 'test.pdf');
@@ -34,8 +26,10 @@ Another paragraph here.
   if (!convertSuccess || !fs.existsSync(pdfPath)) {
     throw new Error('convertMdToPdf failed to produce a PDF file');
   }
+  return { mdPath, pdfPath };
+}
 
-  // 2. Test searchPdf
+async function testSearchPdf(pdfPath: string): Promise<void> {
   console.log('\n2. Testing searchPdf...');
   const searchResults1 = await searchPdf(pdfPath, 'Section 1');
   console.log('Search for "Section 1" results:', searchResults1);
@@ -68,8 +62,9 @@ Another paragraph here.
   if (searchResults3.length > 0) {
     throw new Error('searchPdf found a nonexistent query term');
   }
+}
 
-  // 3. Test extractDocxParagraphs
+async function testExtractDocxParagraphs(testDir: string): Promise<string> {
   console.log('\n3. Testing extractDocxParagraphs...');
   const docxPath = path.join(testDir, 'test.docx');
   const docxZip = new AdmZip();
@@ -106,8 +101,10 @@ Another paragraph here.
   if (paragraphs[1] !== 'This is paragraph 2 with <span> & "other" XML entities.') {
     throw new Error(`Unexpected paragraph 2 text: "${paragraphs[1]}"`);
   }
+  return docxPath;
+}
 
-  // 4. Test extractPptxText
+async function testExtractPptxText(testDir: string): Promise<string> {
   console.log('\n4. Testing extractPptxText...');
   const pptxPath = path.join(testDir, 'test.pptx');
   const pptxZip = new AdmZip();
@@ -175,12 +172,16 @@ Another paragraph here.
   if (pptxText !== expectedPptxText) {
     throw new Error(`Unexpected PPTX extracted text:\nExpected:\n"${expectedPptxText}"\n\nGot:\n"${pptxText}"`);
   }
+  return pptxPath;
+}
 
-  // 5. Test error handling
+async function testErrorHandling(testDir: string): Promise<Record<string, string>> {
   console.log('\n5. Testing error handling (corrupt, encrypted, malformed files)...');
+  const paths: Record<string, string> = {};
 
   // Corrupt DOCX
   const corruptDocxPath = path.join(testDir, 'corrupt.docx');
+  paths.corruptDocxPath = corruptDocxPath;
   fs.writeFileSync(corruptDocxPath, 'not a zip file');
   try {
     await extractDocxParagraphs(corruptDocxPath);
@@ -191,6 +192,7 @@ Another paragraph here.
 
   // Malformed XML DOCX
   const malformedDocxPath = path.join(testDir, 'malformed.docx');
+  paths.malformedDocxPath = malformedDocxPath;
   const malformedDocxZip = new AdmZip();
   malformedDocxZip.addFile('word/document.xml', Buffer.from('<invalid-xml><w:t>Open tag mismatch', 'utf8'));
   malformedDocxZip.writeZip(malformedDocxPath);
@@ -203,6 +205,7 @@ Another paragraph here.
 
   // Corrupt PDF
   const corruptPdfPath = path.join(testDir, 'corrupt.pdf');
+  paths.corruptPdfPath = corruptPdfPath;
   fs.writeFileSync(corruptPdfPath, 'not a pdf');
   try {
     await searchPdf(corruptPdfPath, 'test');
@@ -213,6 +216,7 @@ Another paragraph here.
 
   // Malformed XML PPTX
   const malformedPptxPath = path.join(testDir, 'malformed.pptx');
+  paths.malformedPptxPath = malformedPptxPath;
   const malformedPptxZip = new AdmZip();
   malformedPptxZip.addFile('ppt/slides/slide1.xml', Buffer.from('<invalid-xml><a:t>Open tag mismatch', 'utf8'));
   malformedPptxZip.writeZip(malformedPptxPath);
@@ -223,20 +227,38 @@ Another paragraph here.
     console.log('Successfully caught PPTX malformed XML error:', err.message);
   }
 
+  return paths;
+}
+
+async function runTests() {
+  console.log('--- Starting Document Tools Tests ---');
+
+  const testDir = path.resolve('./test-temp');
+  if (!fs.existsSync(testDir)) {
+    fs.mkdirSync(testDir);
+  }
+
+  const { mdPath, pdfPath } = await testConvertMdToPdf(testDir);
+  await testSearchPdf(pdfPath);
+  const docxPath = await testExtractDocxParagraphs(testDir);
+  const pptxPath = await testExtractPptxText(testDir);
+  const errorPaths = await testErrorHandling(testDir);
+
   // Clean up
   console.log('\nCleaning up temp files...');
   fs.unlinkSync(mdPath);
   fs.unlinkSync(pdfPath);
   fs.unlinkSync(docxPath);
   fs.unlinkSync(pptxPath);
-  fs.unlinkSync(corruptDocxPath);
-  fs.unlinkSync(malformedDocxPath);
-  fs.unlinkSync(corruptPdfPath);
-  fs.unlinkSync(malformedPptxPath);
+  fs.unlinkSync(errorPaths.corruptDocxPath);
+  fs.unlinkSync(errorPaths.malformedDocxPath);
+  fs.unlinkSync(errorPaths.corruptPdfPath);
+  fs.unlinkSync(errorPaths.malformedPptxPath);
   fs.rmdirSync(testDir);
 
   console.log('\n--- All Tests Passed Successfully! ---');
 }
+
 
 runTests().catch(err => {
   console.error('Test failed:', err);
