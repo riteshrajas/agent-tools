@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync, spawnSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import * as readline from 'readline';
 
 // ──────────────────────────────────────────────────────────────────────────────
