@@ -1,5 +1,4 @@
-import { execFile } from 'child_process';
-import { promisify } from 'util';
+import child_process from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
@@ -9,7 +8,17 @@ import AdmZip from 'adm-zip';
 // @ts-ignore
 import { PdfReader } from 'pdfreader';
 
-const execFilePromise = promisify(execFile);
+function execFilePromise(file: string, args: string[], options: any): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    child_process.execFile(file, args, options, (error, stdout, stderr) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve({ stdout, stderr });
+      }
+    });
+  });
+}
 
 /**
  * Decodes standard XML entities.

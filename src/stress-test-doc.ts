@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as child_process from 'child_process';
+import child_process from 'child_process';
 import assert from 'assert';
 import AdmZip from 'adm-zip';
 
@@ -78,30 +78,30 @@ let lastGeneratedHtml: string | null = null;
 let lastExecOptions: any = null;
 
 const originalExecFile = child_process.execFile;
-////(child_process as any).execFile = function (file: string, args: string[], options: any, callback: any) {
-//  lastExecOptions = options;
-//  // Capture HTML content if passed as file:/// path
-//  const htmlArg = args.find(arg => arg.includes('md_to_pdf_') && arg.endsWith('.html'));
-//  if (htmlArg) {
-//    const filePath = htmlArg.replace(/^file:\/\/\/?/, '');
-//    // Resolve path for Windows/Unix compatibility
-//    const resolvedPath = path.resolve(filePath);
-//    if (fs.existsSync(resolvedPath)) {
-//      lastGeneratedHtml = fs.readFileSync(resolvedPath, 'utf8');
-//    }
-//  }
-//
-//  if (shouldSimulateTimeout) {
-//    const err = new Error(`Command failed: ${file} ${args.join(' ')}\nETIMEDOUT`);
-//    (err as any).killed = true;
-//    (err as any).code = null;
-//    (err as any).signal = 'SIGTERM';
-//    process.nextTick(() => callback(err, '', ''));
-//    return;
-//  }
-//
-//  return originalExecFile.apply(this, arguments as any);
-//};
+(child_process as any).execFile = function (file: string, args: string[], options: any, callback: any) {
+  lastExecOptions = options;
+  // Capture HTML content if passed as file:/// path
+  const htmlArg = args.find(arg => arg.includes('md_to_pdf_') && arg.endsWith('.html'));
+  if (htmlArg) {
+    const filePath = htmlArg.replace(/^file:\/\/\/?/, '');
+    // Resolve path for Windows/Unix compatibility
+    const resolvedPath = path.resolve(filePath);
+    if (fs.existsSync(resolvedPath)) {
+      lastGeneratedHtml = fs.readFileSync(resolvedPath, 'utf8');
+    }
+  }
+
+  if (shouldSimulateTimeout) {
+    const err = new Error(`Command failed: ${file} ${args.join(' ')}\nETIMEDOUT`);
+    (err as any).killed = true;
+    (err as any).code = null;
+    (err as any).signal = 'SIGTERM';
+    process.nextTick(() => callback(err, '', ''));
+    return;
+  }
+
+  return originalExecFile.apply(this, arguments as any);
+};
 
 // Dynamically import doc tools so monkey patch is applied before module execution
 const { convertMdToPdf, extractPptxText, searchPdf, extractDocxParagraphs } = await import('./tools/doc.js');
@@ -150,21 +150,24 @@ And html entities in scheme: <a href="java&#x09;script:alert(4)">Link 3</a>
   lastGeneratedHtml = "" as string;
   const injectSuccess = await convertMdToPdf(injectMdPath, injectPdfPath);
   assert.strictEqual(injectSuccess, true, 'Should convert injection markdown successfully');
-  assert.ok(lastGeneratedHtml, 'Should have captured generated HTML');
+  if (!lastGeneratedHtml) {
+    throw new Error('Should have captured generated HTML');
+  }
+  const html = lastGeneratedHtml as string;
 
   console.log('Verifying HTML sanitization rules in intermediate HTML...');
   // 1. Script tag should be escaped
-  assert.ok(!(lastGeneratedHtml as string).includes('<script>'), 'Script tag should not be present');
-  assert.ok((lastGeneratedHtml as string).includes('&lt;script&gt;'), 'Script tag must be escaped');
+  assert.ok(!html.includes('<script>'), 'Script tag should not be present');
+  assert.ok(html.includes('&lt;script&gt;'), 'Script tag must be escaped');
   // 2. Iframe tag should be escaped
-  assert.ok(!(lastGeneratedHtml as string).includes('<iframe'), 'Iframe tag should not be present');
-  assert.ok((lastGeneratedHtml as string).includes('&lt;iframe'), 'Iframe tag must be escaped');
+  assert.ok(!html.includes('<iframe'), 'Iframe tag should not be present');
+  assert.ok(html.includes('&lt;iframe'), 'Iframe tag must be escaped');
   // 3. Event handler should be stripped
-  assert.ok(!(lastGeneratedHtml as string).includes('onclick'), 'onclick attribute must be stripped');
-  assert.ok((lastGeneratedHtml as string).includes('<div  class="my-div">Content</div>'), 'div content should remain');
+  assert.ok(!html.includes('onclick'), 'onclick attribute must be stripped');
+  assert.ok(html.includes('<div class="my-div">Content</div>'), 'div content should remain');
   // 4. javascript: links should be stripped
-  assert.ok(!(lastGeneratedHtml as string).includes('javascript:'), 'javascript URL must be stripped');
-  assert.ok((lastGeneratedHtml as string).includes('href=""') || !(lastGeneratedHtml as string).includes('href="javascript'), 'javascript URL should be stripped');
+  assert.ok(!html.includes('javascript:'), 'javascript URL must be stripped');
+  assert.ok(html.includes('href=""') || !html.includes('href="javascript'), 'javascript URL should be stripped');
 
   // Case 1.4: Edge Timeout Handling
   console.log('Case 1.4: Edge timeout test...');
