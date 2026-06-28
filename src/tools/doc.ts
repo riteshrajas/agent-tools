@@ -444,18 +444,16 @@ export function searchPdf(
               });
 
               // Reconstruct page text
-              let pageText = '';
+              const pageTextParts: string[] = [];
               let lastY = -1;
               for (const it of items) {
-                if (lastY === -1) {
-                  pageText += it.text;
-                } else if (Math.abs(it.y - lastY) < 1.0) {
-                  pageText += it.text;
-                } else {
-                  pageText += '\n' + it.text;
+                if (lastY !== -1 && Math.abs(it.y - lastY) >= 1.0) {
+                  pageTextParts.push('\n');
                 }
+                pageTextParts.push(it.text);
                 lastY = it.y;
               }
+              const pageText = pageTextParts.join('');
 
               // Case-insensitive query check
               const queryIndex = pageText.toLowerCase().indexOf(query.toLowerCase());
