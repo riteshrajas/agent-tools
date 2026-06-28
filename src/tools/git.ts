@@ -90,7 +90,7 @@ export function archiveRepo(nameWithOwner: string): string {
 
 export function deleteRepo(nameWithOwner: string): string {
   try {
-    execSync(`gh repo delete ${nameWithOwner} --yes`);
+    runGhCommand(['repo', 'delete', nameWithOwner, '--yes']);
     return `Successfully deleted ${nameWithOwner}`;
   } catch (error: any) {
     throw new Error(`Failed to delete repo ${nameWithOwner}: ${error.message}`);

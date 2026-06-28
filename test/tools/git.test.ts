@@ -6,7 +6,7 @@ vi.mock('child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('child_process')>();
   return {
     ...actual,
-    execSync: vi.fn(),
+    spawnSync: vi.fn(),
   };
 });
 
@@ -16,34 +16,42 @@ describe('deleteRepo', () => {
   });
 
   it('should successfully delete a repository and return success message', () => {
-    // Arrange
-    const execSyncMock = vi.mocked(child_process.execSync);
-    execSyncMock.mockReturnValue(Buffer.from(''));
+    const spawnSyncMock = vi.mocked(child_process.spawnSync);
+    spawnSyncMock.mockReturnValue({
+      status: 0,
+      stdout: 'Successfully deleted repo\n',
+      stderr: '',
+      pid: 1,
+      output: [],
+      signal: null,
+      error: undefined
+    } as any);
 
     const repoName = 'testuser/testrepo';
-
-    // Act
     const result = deleteRepo(repoName);
 
-    // Assert
-    expect(execSyncMock).toHaveBeenCalledTimes(1);
-    expect(execSyncMock).toHaveBeenCalledWith(`gh repo delete ${repoName} --yes`);
+    expect(spawnSyncMock).toHaveBeenCalledTimes(1);
+    expect(spawnSyncMock).toHaveBeenCalledWith('gh', ['repo', 'delete', repoName, '--yes'], { encoding: 'utf8' });
     expect(result).toBe(`Successfully deleted ${repoName}`);
   });
 
   it('should throw an error if the command fails', () => {
-    // Arrange
     const errorMessage = 'Command failed: gh repo delete';
-    const execSyncMock = vi.mocked(child_process.execSync);
-    execSyncMock.mockImplementation(() => {
-      throw new Error(errorMessage);
-    });
+    const spawnSyncMock = vi.mocked(child_process.spawnSync);
+    spawnSyncMock.mockReturnValue({
+      status: 1,
+      stdout: '',
+      stderr: errorMessage,
+      pid: 1,
+      output: [],
+      signal: null,
+      error: undefined
+    } as any);
 
     const repoName = 'testuser/nonexistent';
 
-    // Act & Assert
     expect(() => deleteRepo(repoName)).toThrowError(`Failed to delete repo ${repoName}: ${errorMessage}`);
-    expect(execSyncMock).toHaveBeenCalledTimes(1);
-    expect(execSyncMock).toHaveBeenCalledWith(`gh repo delete ${repoName} --yes`);
+    expect(spawnSyncMock).toHaveBeenCalledTimes(1);
+    expect(spawnSyncMock).toHaveBeenCalledWith('gh', ['repo', 'delete', repoName, '--yes'], { encoding: 'utf8' });
   });
 });

@@ -38,7 +38,7 @@ describe('deleteRepo', () => {
 
     // Assert exactly what the current secure implementation does
     expect(cp.spawnSync).toHaveBeenCalledWith('gh', ['repo', 'delete', 'test/repo', '--yes'], { encoding: 'utf8' });
-    expect(result).toBe('Successfully deleted repo');
+    expect(result).toBe('Successfully deleted test/repo');
   });
 
   it('throws an error if the command fails (non-zero exit)', () => {
