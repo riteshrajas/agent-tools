@@ -15,20 +15,23 @@ export async function mergePDFs(inputPaths: string[], outputPath: string): Promi
   }
   const mergedPdf = await PDFDocument.create();
 
-  for (const inputPath of inputPaths) {
-    const resolvedPath = path.resolve(inputPath);
-    if (!fs.existsSync(resolvedPath)) {
-      throw new Error(`Input file not found: ${inputPath}`);
-    }
-    const pdfBytes = fs.readFileSync(resolvedPath);
-    const pdfDoc = await PDFDocument.load(pdfBytes);
+  const pdfDocs = await Promise.all(
+    inputPaths.map(async (inputPath) => {
+      const resolvedPath = path.resolve(inputPath);
+      // fs.promises.readFile will throw an error if the file is not found
+      const pdfBytes = await fs.promises.readFile(resolvedPath);
+      return PDFDocument.load(pdfBytes);
+    })
+  );
+
+  for (const pdfDoc of pdfDocs) {
     const copiedPages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
     copiedPages.forEach((page) => mergedPdf.addPage(page));
   }
 
   const mergedPdfBytes = await mergedPdf.save();
   const resolvedOutputPath = path.resolve(outputPath);
-  fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
+  await fs.promises.mkdir(path.dirname(resolvedOutputPath), { recursive: true });
   await fs.promises.writeFile(resolvedOutputPath, mergedPdfBytes);
   return resolvedOutputPath;
 }
@@ -42,11 +45,8 @@ export async function splitPDF(
   pages?: string // comma-separated list or range e.g. "1-3,5,7" (1-indexed)
 ): Promise<string[]> {
   const resolvedInputPath = path.resolve(inputPath);
-  if (!fs.existsSync(resolvedInputPath)) {
-    throw new Error(`Input file not found: ${inputPath}`);
-  }
 
-  const pdfBytes = fs.readFileSync(resolvedInputPath);
+  const pdfBytes = await fs.promises.readFile(resolvedInputPath);
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const totalPages = pdfDoc.getPageCount();
 
@@ -82,7 +82,7 @@ export async function splitPDF(
   }
 
   const resolvedOutputDir = path.resolve(outputDir);
-  fs.mkdirSync(resolvedOutputDir, { recursive: true });
+  await fs.promises.mkdir(resolvedOutputDir, { recursive: true });
   const createdFiles: string[] = [];
 
   if (pages) {
@@ -131,11 +131,8 @@ export async function rotatePDF(
   }
 
   const resolvedInputPath = path.resolve(inputPath);
-  if (!fs.existsSync(resolvedInputPath)) {
-    throw new Error(`Input file not found: ${inputPath}`);
-  }
 
-  const pdfBytes = fs.readFileSync(resolvedInputPath);
+  const pdfBytes = await fs.promises.readFile(resolvedInputPath);
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const totalPages = pdfDoc.getPageCount();
 
@@ -168,7 +165,7 @@ export async function rotatePDF(
 
   const rotatedPdfBytes = await pdfDoc.save();
   const resolvedOutputPath = path.resolve(outputPath);
-  fs.mkdirSync(path.dirname(resolvedOutputPath), { recursive: true });
+  await fs.promises.mkdir(path.dirname(resolvedOutputPath), { recursive: true });
   await fs.promises.writeFile(resolvedOutputPath, rotatedPdfBytes);
   return resolvedOutputPath;
 }
@@ -177,8 +174,7 @@ export async function rotatePDF(
 export async function compressPDF(inputPath: string, outputPath: string): Promise<string> {
   const resolvedIn = path.resolve(inputPath);
   const resolvedOut = path.resolve(outputPath);
-  if (!fs.existsSync(resolvedIn)) throw new Error(`Input file not found: ${inputPath}`);
-  fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
+  await fs.promises.mkdir(path.dirname(resolvedOut), { recursive: true });
 
   return new Promise((resolve, reject) => {
     execFile('qpdf', ['--linearize', resolvedIn, resolvedOut], (error, stdout, stderr) => {
@@ -191,8 +187,7 @@ export async function compressPDF(inputPath: string, outputPath: string): Promis
 export async function protectPDF(inputPath: string, outputPath: string, userPass: string, ownerPass: string = userPass): Promise<string> {
   const resolvedIn = path.resolve(inputPath);
   const resolvedOut = path.resolve(outputPath);
-  if (!fs.existsSync(resolvedIn)) throw new Error(`Input file not found: ${inputPath}`);
-  fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
+  await fs.promises.mkdir(path.dirname(resolvedOut), { recursive: true });
 
   const options = {
     keyLength: 256,
@@ -207,8 +202,7 @@ export async function protectPDF(inputPath: string, outputPath: string, userPass
 export async function unlockPDF(inputPath: string, outputPath: string, password: string): Promise<string> {
   const resolvedIn = path.resolve(inputPath);
   const resolvedOut = path.resolve(outputPath);
-  if (!fs.existsSync(resolvedIn)) throw new Error(`Input file not found: ${inputPath}`);
-  fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
+  await fs.promises.mkdir(path.dirname(resolvedOut), { recursive: true });
 
   qpdf.decrypt(resolvedIn, password, resolvedOut);
   return resolvedOut;
@@ -217,9 +211,8 @@ export async function unlockPDF(inputPath: string, outputPath: string, password:
 export async function addPageNumbers(inputPath: string, outputPath: string): Promise<string> {
   const resolvedIn = path.resolve(inputPath);
   const resolvedOut = path.resolve(outputPath);
-  if (!fs.existsSync(resolvedIn)) throw new Error(`Input file not found: ${inputPath}`);
 
-  const pdfBytes = fs.readFileSync(resolvedIn);
+  const pdfBytes = await fs.promises.readFile(resolvedIn);
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const pages = pdfDoc.getPages();
 
@@ -237,7 +230,7 @@ export async function addPageNumbers(inputPath: string, outputPath: string): Pro
   }
 
   const newPdfBytes = await pdfDoc.save();
-  fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
+  await fs.promises.mkdir(path.dirname(resolvedOut), { recursive: true });
   await fs.promises.writeFile(resolvedOut, newPdfBytes);
   return resolvedOut;
 }
@@ -245,8 +238,7 @@ export async function addPageNumbers(inputPath: string, outputPath: string): Pro
 export async function pdfToOffice(inputPath: string, outputDir: string, format: 'docx' | 'xlsx' | 'html'): Promise<string> {
   const resolvedIn = path.resolve(inputPath);
   const resolvedOutDir = path.resolve(outputDir);
-  if (!fs.existsSync(resolvedIn)) throw new Error(`Input file not found: ${inputPath}`);
-  fs.mkdirSync(resolvedOutDir, { recursive: true });
+  await fs.promises.mkdir(resolvedOutDir, { recursive: true });
 
   return new Promise((resolve, reject) => {
     execFile('soffice', ['--headless', '--infilter="writer_pdf_import"', '--convert-to', format, resolvedIn, '--outdir', resolvedOutDir], (error, stdout, stderr) => {
@@ -262,8 +254,7 @@ export async function pdfToOffice(inputPath: string, outputDir: string, format: 
 export async function officeToPDF(inputPath: string, outputDir: string): Promise<string> {
   const resolvedIn = path.resolve(inputPath);
   const resolvedOutDir = path.resolve(outputDir);
-  if (!fs.existsSync(resolvedIn)) throw new Error(`Input file not found: ${inputPath}`);
-  fs.mkdirSync(resolvedOutDir, { recursive: true });
+  await fs.promises.mkdir(resolvedOutDir, { recursive: true });
 
   return new Promise((resolve, reject) => {
     execFile('soffice', ['--headless', '--convert-to', 'pdf', resolvedIn, '--outdir', resolvedOutDir], (error, stdout, stderr) => {
@@ -283,20 +274,23 @@ export async function imagesToPDF(imagePaths: string[], outputPath: string): Pro
 
   const pdfDoc = await PDFDocument.create();
 
-  for (const p of imagePaths) {
-    const resolvedPath = path.resolve(p);
-    if (!fs.existsSync(resolvedPath)) throw new Error(`Image not found: ${p}`);
+  const imagesData = await Promise.all(
+    imagePaths.map(async (p) => {
+        const resolvedPath = path.resolve(p);
+        const imageBytes = await fs.promises.readFile(resolvedPath);
+        let pdfImage;
+        if (p.toLowerCase().endsWith('.png')) {
+          pdfImage = await pdfDoc.embedPng(imageBytes);
+        } else if (p.toLowerCase().endsWith('.jpg') || p.toLowerCase().endsWith('.jpeg')) {
+          pdfImage = await pdfDoc.embedJpg(imageBytes);
+        } else {
+          throw new Error(`Unsupported image type for direct PDF conversion: ${p}`);
+        }
+        return pdfImage;
+    })
+  );
 
-    const imageBytes = fs.readFileSync(resolvedPath);
-    let pdfImage;
-    if (p.toLowerCase().endsWith('.png')) {
-      pdfImage = await pdfDoc.embedPng(imageBytes);
-    } else if (p.toLowerCase().endsWith('.jpg') || p.toLowerCase().endsWith('.jpeg')) {
-      pdfImage = await pdfDoc.embedJpg(imageBytes);
-    } else {
-      throw new Error(`Unsupported image type for direct PDF conversion: ${p}`);
-    }
-
+  for (const pdfImage of imagesData) {
     const { width, height } = pdfImage.scale(1);
     const page = pdfDoc.addPage([width, height]);
     page.drawImage(pdfImage, {
@@ -308,7 +302,7 @@ export async function imagesToPDF(imagePaths: string[], outputPath: string): Pro
   }
 
   const newPdfBytes = await pdfDoc.save();
-  fs.mkdirSync(path.dirname(resolvedOut), { recursive: true });
+  await fs.promises.mkdir(path.dirname(resolvedOut), { recursive: true });
   await fs.promises.writeFile(resolvedOut, newPdfBytes);
   return resolvedOut;
 }
