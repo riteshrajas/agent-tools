@@ -4,7 +4,7 @@ import { trimVideo, mergeVideos, changeVideoSpeed, changeVideoVolume } from './t
 import { trimAudio, mergeAudio, changeAudioSpeed, changeAudioVolume, reverseAudio } from './tools/audio.js';
 import { convertImage, convertAudio, convertVideo } from './tools/converter.js';
 import { convertMdToPdf, extractPptxText, searchPdf, extractDocxParagraphs } from './tools/doc.js';
-import { runInteractiveRepoCleanup, bundleCodebase, fetchGitHubRepos, batchCleanRepos } from './tools/git.js';
+import { runInteractiveRepoCleanup, bundleCodebase, fetchGitHubRepos } from './tools/git.js';
 
 export function setupCLI(): Command {
   const program = new Command();
