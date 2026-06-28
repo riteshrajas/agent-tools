@@ -413,7 +413,7 @@ export function setupCLI(): Command {
       try {
         const extensions = options.ext ? options.ext.split(',') : undefined;
         console.log(`Bundling codebase at ${dir}...`);
-        const result = bundleCodebase(dir, output, {
+        const result = await bundleCodebase(dir, output, {
           maxFileSize: options.maxSize,
           extensions,
         });

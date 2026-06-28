@@ -500,7 +500,7 @@ export async function startMCPServer(): Promise<void> {
         }
         case 'bundle_codebase': {
           const { dir, output, maxFileSize, extensions } = args as { dir: string; output: string; maxFileSize?: number; extensions?: string[] };
-          const result = bundleCodebase(dir, output, { maxFileSize, extensions });
+          const result = await bundleCodebase(dir, output, { maxFileSize, extensions });
           resultText = `✅  Bundled ${result.fileCount} files (${(result.totalBytes / 1024).toFixed(1)} KB) → ${result.outputFile}`;
           break;
         }
