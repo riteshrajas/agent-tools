@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import * as child_process from 'child_process';
-import { changeAudioSpeed, mergeAudio } from '../src/tools/audio';
+import { changeAudioSpeed, mergeAudio, trimAudio } from '../src/tools/audio';
 import * as fs from 'fs';
+import * as path from 'path';
 
 vi.mock('child_process', () => {
   return {
@@ -91,5 +92,41 @@ describe('changeAudioSpeed', () => {
 describe('mergeAudio', () => {
   it('should reject empty input array', async () => {
     await expect(mergeAudio([], 'output.mp3')).rejects.toThrow(/No input.*files provided/);
+  });
+});
+
+describe('trimAudio', () => {
+  let execFileMock: any;
+  let existsMock: any;
+
+  beforeEach(() => {
+    execFileMock = vi.mocked(child_process.execFile);
+    execFileMock.mockClear();
+    existsMock = vi.mocked(fs.existsSync);
+  });
+
+  it('should trim audio successfully with duration', async () => {
+    existsMock.mockReturnValueOnce(true);
+    const result = await trimAudio('input.mp3', 'output.mp3', '00:00:10', '00:00:20');
+    expect(result).toBe(path.resolve('output.mp3'));
+    expect(execFileMock).toHaveBeenCalledTimes(1);
+    const args = execFileMock.mock.calls[0][1];
+    expect(args).toEqual(expect.arrayContaining(['-ss', '00:00:10', '-i', path.resolve('input.mp3'), '-t', '00:00:20', '-acodec', 'copy', path.resolve('output.mp3')]));
+  });
+
+  it('should trim audio successfully without duration', async () => {
+    existsMock.mockReturnValueOnce(true);
+    const result = await trimAudio('input.mp3', 'output.mp3', '10');
+    expect(result).toBe(path.resolve('output.mp3'));
+    expect(execFileMock).toHaveBeenCalledTimes(1);
+    const args = execFileMock.mock.calls[0][1];
+    expect(args).toEqual(expect.arrayContaining(['-ss', '10', '-i', path.resolve('input.mp3'), '-acodec', 'copy', path.resolve('output.mp3')]));
+    expect(args).not.toContain('-t');
+  });
+
+  it('should throw an error if input file does not exist', async () => {
+    existsMock.mockReturnValueOnce(false);
+    await expect(trimAudio('missing.mp3', 'output.mp3', '10')).rejects.toThrow('Input audio not found: missing.mp3');
+    expect(execFileMock).not.toHaveBeenCalled();
   });
 });
