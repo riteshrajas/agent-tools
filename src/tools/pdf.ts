@@ -10,6 +10,9 @@ import * as path from 'path';
  * Merges multiple PDF files into a single PDF.
  */
 export async function mergePDFs(inputPaths: string[], outputPath: string): Promise<string> {
+  if (inputPaths.length === 0) {
+    throw new Error("No input files provided for merging.");
+  }
   const mergedPdf = await PDFDocument.create();
 
   const pdfDocs = await Promise.all(
@@ -96,7 +99,7 @@ export async function splitPDF(
   } else {
     // Split into individual pages
     const baseName = path.basename(resolvedInputPath, '.pdf');
-    for (const index of targetIndices) {
+    const writePromises = targetIndices.map(async (index) => {
       const newPdf = await PDFDocument.create();
       const [copiedPage] = await newPdf.copyPages(pdfDoc, [index]);
       newPdf.addPage(copiedPage);
@@ -104,8 +107,11 @@ export async function splitPDF(
 
       const outPath = path.join(resolvedOutputDir, `${baseName}_page_${index + 1}.pdf`);
       await fs.promises.writeFile(outPath, newPdfBytes);
-      createdFiles.push(outPath);
-    }
+      return outPath;
+    });
+
+    const results = await Promise.all(writePromises);
+    createdFiles.push(...results);
   }
 
   return createdFiles;

@@ -1,4 +1,4 @@
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -7,8 +7,7 @@ import * as fs from 'fs';
  */
 function runFFmpeg(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const cmd = `ffmpeg -y ${args.join(' ')}`;
-    exec(cmd, (error, stdout, stderr) => {
+    execFile('ffmpeg', ['-y', ...args], (error, stdout, stderr) => {
       if (error) {
         reject(new Error(`FFmpeg failed: ${stderr || error.message}`));
       } else {
@@ -37,12 +36,12 @@ export async function trimAudio(
 
   const args: string[] = [];
   args.push(`-ss`, startTime);
-  args.push(`-i`, `"${resolvedIn}"`);
+  args.push(`-i`, resolvedIn);
   if (duration) {
     args.push(`-t`, duration);
   }
   args.push(`-acodec`, `copy`); // Fast copy if possible
-  args.push(`"${resolvedOut}"`);
+  args.push(resolvedOut);
 
   await runFFmpeg(args);
   return resolvedOut;
@@ -73,10 +72,10 @@ export async function mergeAudio(inputPaths: string[], outputPath: string): Prom
       `-safe`,
       `0`,
       `-i`,
-      `"${tempFileListPath}"`,
+      tempFileListPath,
       `-c`,
       `copy`,
-      `"${resolvedOut}"`,
+      resolvedOut,
     ];
     await runFFmpeg(args);
   } finally {
@@ -96,6 +95,9 @@ export async function changeAudioSpeed(
   outputPath: string,
   speed: number
 ): Promise<string> {
+  if (speed <= 0) {
+    throw new Error("Speed must be greater than 0.");
+  }
   const resolvedIn = path.resolve(inputPath);
   const resolvedOut = path.resolve(outputPath);
   if (!fs.existsSync(resolvedIn)) {
@@ -126,10 +128,10 @@ export async function changeAudioSpeed(
 
   const args = [
     `-i`,
-    `"${resolvedIn}"`,
+    resolvedIn,
     `-filter:a`,
-    `"${audioFilter}"`,
-    `"${resolvedOut}"`,
+    audioFilter,
+    resolvedOut,
   ];
 
   await runFFmpeg(args);
@@ -154,10 +156,10 @@ export async function changeAudioVolume(
 
   const args = [
     `-i`,
-    `"${resolvedIn}"`,
+    resolvedIn,
     `-filter:a`,
-    `"volume=${volume}"`,
-    `"${resolvedOut}"`,
+    `volume=${volume}`,
+    resolvedOut,
   ];
 
   await runFFmpeg(args);
@@ -178,10 +180,10 @@ export async function reverseAudio(inputPath: string, outputPath: string): Promi
 
   const args = [
     `-i`,
-    `"${resolvedIn}"`,
+    resolvedIn,
     `-filter_complex`,
-    `"areverse"`,
-    `"${resolvedOut}"`,
+    `areverse`,
+    resolvedOut,
   ];
 
   await runFFmpeg(args);
